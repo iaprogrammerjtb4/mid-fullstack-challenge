@@ -1,0 +1,69 @@
+import { idParamSchema } from "@/lib/schemas";
+import { jsonErr, jsonOk, jsonZodError } from "@/lib/api-response";
+import { getDb } from "@/lib/db";
+
+type BoardRow = { id: number; name: string; created_at: string };
+type ColumnRow = {
+  id: number;
+  board_id: number;
+  name: string;
+  display_order: number;
+};
+type TaskRow = {
+  id: number;
+  column_id: number;
+  title: string;
+  description: string;
+  priority: string;
+  created_at: string;
+};
+
+export async function GET(
+  _request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  const { id: idStr } = await context.params;
+  const idParsed = idParamSchema.safeParse(idStr);
+  if (!idParsed.success) return jsonZodError(idParsed.error);
+
+  const db = getDb();
+  const board = db
+    .prepare(`SELECT id, name, created_at FROM boards WHERE id = ?`)
+    .get(idParsed.data) as BoardRow | undefined;
+  if (!board) return jsonErr("NOT_FOUND", "Board not found", 404);
+
+  const columns = db
+    .prepare(
+      `SELECT id, board_id, name, display_order FROM columns WHERE board_id = ? ORDER BY display_order ASC, id ASC`,
+    )
+    .all(board.id) as ColumnRow[];
+
+  const result = {
+    id: board.id,
+    name: board.name,
+    createdAt: board.created_at,
+    columns: columns.map((col) => {
+      const tasks = db
+        .prepare(
+          `SELECT id, column_id, title, description, priority, created_at FROM tasks WHERE column_id = ? ORDER BY datetime(created_at) ASC, id ASC`,
+        )
+        .all(col.id) as TaskRow[];
+      return {
+        id: col.id,
+        boardId: col.board_id,
+        name: col.name,
+        displayOrder: col.display_order,
+        tasks: tasks.map((t) => ({
+          id: t.id,
+          columnId: t.column_id,
+          title: t.title,
+          description: t.description,
+          priority: t.priority,
+          createdAt: t.created_at,
+        })),
+      };
+    }),
+  };
+
+  return jsonOk(result);
+}

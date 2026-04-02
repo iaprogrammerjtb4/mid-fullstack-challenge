@@ -1,107 +1,91 @@
-## Technical Challenge — Mid-Level
+# Mid-Level Fullstack Technical Challenge — Solution
 
-### Background
+Task board (**Next.js App Router**, **SQLite**, **Tailwind CSS**, **Zod** validation). **Runtime: [Bun](https://bun.sh)** per the challenge brief; **Node.js 22.5+** is also supported. The app uses Node’s [`node:sqlite`](https://nodejs.org/api/sqlite.html) (`DatabaseSync`), which Bun implements for compatibility—same code path for `bun run dev` / `npm run dev`.
 
-A small project management startup wants to build a simple internal tool for their team to organize work visually. They need a basic task board where team members can create boards, organize tasks into columns, and move tasks between stages.
+## Run locally
 
-In this challenge, you'll build a simplified task board application with a REST API, a database, and a functional UI.
+### With Bun (challenge brief)
 
-We are **not evaluating specific tools or patterns**. We simply want to understand how you think, how you code, and how you approach real-world problems. Be yourself.
+Install [Bun](https://bun.sh/docs/installation), then from the project root:
 
+```bash
+bun install
+bun run seed   # optional: one board "Sample board" with columns and tasks
+bun run dev
+```
 
-### What You Need to Build
+### With Node + npm
 
-A functional **full stack application** with the ability to:
+**Requirements:** Node **≥ 22.5** (for `node:sqlite`).
 
-1. Create and view boards
-2. Add columns to a board
-3. Create, update, and delete tasks within columns
-4. Move tasks between columns
-5. View a board in a kanban-style layout
+**nvm (Windows / nvm-windows):** the repo includes `.nvmrc` with `22`.
 
+```bash
+nvm install 22
+nvm use 22
+node -v   # v22.x.x (≥ 22.5)
+```
 
-### Database Schema
+```bash
+npm install
+npm run seed   # optional
+npm run dev
+```
 
-Design the schema yourself. At minimum, you should support:
+Open [http://localhost:3000](http://localhost:3000). Open a board from the list to see the Kanban view.
 
-- **Boards** with a name and creation date
-- **Columns** belonging to a board, with a name and display order
-- **Tasks** belonging to a column, with: title, description, priority, and creation date
+## Challenge checklist
 
-Include appropriate indexes and a seed script that creates one board with sample data.
+| Requirement | How it’s met |
+| ----------- | ------------ |
+| Boards (name, creation date) | `boards` table; `GET/POST /api/boards` |
+| Columns per board (name, display order) | `columns` + unique `(board_id, display_order)`; `POST /api/columns` |
+| Tasks (title, description, priority, creation date) | `tasks` table; `POST/PATCH/DELETE /api/tasks` |
+| Indexes | See `src/lib/db.ts` (boards, columns, tasks, FKs + WAL) |
+| Seed script | `npm run seed` / `bun run seed` → `scripts/seed.ts` |
+| API endpoints + validation + status codes | `src/app/api/**` + Zod in `src/lib/schemas.ts` |
+| Consistent JSON | `{ ok, data }` / `{ ok: false, error: { code, message, details? } }` in `src/lib/api-response.ts` |
+| Kanban UI, modal new task, dropdown move | `src/app/boards/[id]/page.tsx` |
+| Loading & empty states | Home + board pages |
 
+## Scripts
 
-### Tech Stack
+| Command | Description |
+| ------- | ----------- |
+| `bun run dev` / `npm run dev` | Next.js dev (Turbopack) |
+| `bun run build` / `npm run build` | Production build |
+| `bun run start` / `npm start` | Serve production build |
+| `bun run seed` / `npm run seed` | One board `"Sample board"` (replaces existing row with same name) |
+| `bun run lint` / `npm run lint` | ESLint |
 
-#### Backend
+## API
 
-* Runtime: **Bun**
-* Framework: **Next.js** (App Router)
-* Database: **SQLite** (ORM, query builder, or raw SQL — your choice)
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| `GET` | `/api/boards` | List boards |
+| `POST` | `/api/boards` | Create `{ "name" }` |
+| `GET` | `/api/boards/:id` | Board with columns and tasks |
+| `POST` | `/api/columns` | Create column `{ "boardId", "name", "displayOrder" }` |
+| `POST` | `/api/tasks` | Create `{ "columnId", "title", "description?", "priority?" }` |
+| `PATCH` | `/api/tasks/:id` | Partial update: `title`, `description`, `columnId` (same board only), `priority` |
+| `DELETE` | `/api/tasks/:id` | Delete task |
 
-#### Frontend
+Database file: `data/app.db` (gitignored).
 
-* Framework: **Next.js**
-* Styling: **TailwindCSS**
-* Additional UI libraries are welcome but not required
+## Architecture
 
+- **`src/lib/db.ts`:** SQLite (`data/app.db`), schema, indexes, `PRAGMA foreign_keys`, WAL. No native addons beyond the runtime’s SQLite binding.
+- **`src/lib/schemas.ts` + `src/lib/api-response.ts`:** Zod validation and uniform JSON errors (400 / 404 / 409, etc.).
+- **`src/app/api/**`:** Route handlers: validate → DB → respond.
+- **`src/app/page.tsx`:** Board list, create board, loading and empty states.
+- **`src/app/boards/[id]/page.tsx`:** Kanban columns, task cards, modal for new tasks, `<select>` to move tasks, delete, add column.
 
-### Required API Endpoints
+**Trade-offs:** `node:sqlite` is still marked experimental in Node; pinning **≥ 22.5** keeps behavior stable. Column `display_order` is unique per board (simple ordering; production might use fractional indexing or a dedicated reorder API).
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/boards` | List all boards |
-| POST | `/api/boards` | Create a board |
-| GET | `/api/boards/:id` | Get a board with its columns and tasks |
-| POST | `/api/columns` | Create a column (linked to a board) |
-| POST | `/api/tasks` | Create a task (linked to a column) |
-| PATCH | `/api/tasks/:id` | Update a task (title, description, move to another column) |
-| DELETE | `/api/tasks/:id` | Delete a task |
+## AI assistance
 
-- Validate input on every endpoint.
-- Return proper HTTP status codes (400, 404, etc.).
-- Use a consistent JSON response structure.
+This solution was developed with **Cursor / Copilot-class assistance** for scaffolding, API/UI wiring, and documentation. All code was reviewed and adjusted for consistency with the challenge (endpoints, validation, UI requirements).
 
+## Submission
 
-### Required UI
-
-1. A page showing a board in **kanban-style layout** (columns side by side, tasks as cards)
-2. Ability to **create a new task** via a modal or dialog
-3. Ability to **move a task** between columns (a simple dropdown is fine, no drag-and-drop required)
-4. Loading and empty states
-
-
-### Submission Instructions
-
-* **Fork this repository**, complete your work, and **submit a pull request**.
-* Include a `README.md` with:
-  * Clear instructions to run the project locally
-  * A short explanation of your architecture or design decisions
-  * A seed script to preload sample data
-
-
-### Time Expectation
-
-You should spend no more than **2 hours** on this task.
-
-Don't worry if you can't finish everything. What matters most is **how far you get** and **how you approach the problem**.
-
-
-### Evaluation & Guidance
-
-What we mainly evaluate:
-
-- Solution design and structure (architecture, modularity, separation of concerns).
-- Clarity of reasoning and documentation (decisions, trade-offs, assumptions).
-- Code quality (readability, consistency, error handling, good practices).
-- API design (RESTful conventions, validation, error responses).
-- UI completeness and usability.
-- Git workflow (incremental commits with clear messages).
-- Prioritization and scope management: it's valid to leave items pending if you explain what and why.
-
-Use of AI (optional but allowed):
-
-- You may use AI tools (e.g., Claude, Copilot, ChatGPT, Cursor) to assist with your solution.
-- We care most about how you structure the solution and explain your decisions.
-- If you used AI, add a brief note in your PR/README: which tools you used, which parts were assisted, and what changes you made after review.
-- Only include code you understand and can justify.
+Fork the upstream repository, push your branch, and open a **pull request**. This README documents how to run the project, the architecture, and the seed script, as requested in the brief.
