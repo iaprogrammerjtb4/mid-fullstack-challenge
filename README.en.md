@@ -121,7 +121,7 @@ Implementation details: `src/app/api/**`, schemas in `src/lib/schemas.ts`, helpe
 
 1. Connect the repo to [Vercel](https://vercel.com), **Next.js** preset, Node **22.x**.
 2. Minimum production env vars: **`AUTH_SECRET`** and **`AUTH_URL`** (your public deployment URL, no trailing slash).
-3. **Important:** this app uses **on-disk SQLite** (`data/app.db`). Vercel serverless has **no durable writable disk** for that pattern: the site may build, but data will not behave like on your laptop. For serious production on Vercel you need a **remote database** (e.g. Turso, Neon, Postgres) or deploy on a host with **persistent disk** (Railway, Render, Fly, VPS).
+3. **SQLite on Vercel:** the app stores the DB under **`/tmp`** on serverless and seeds **demo** users `pm@example.com` / `dev@example.com` (`password123`) when the users table is empty. Boards do not persist across instances like locally. For real production use a **remote database** or persistent disk (see `docs/vercel-deploy.md`).
 4. **Socket.io** (`bun run socket`) must run as a **separate service**; on Vercel set **`NEXT_PUBLIC_CHAT_SOCKET_URL`** to that service’s public URL.
 
 Full checklist (env vars, LiveKit, caveats): **[`docs/vercel-deploy.md`](./docs/vercel-deploy.md)** (Spanish). Root **`vercel.json`** sets the Next.js framework preset.

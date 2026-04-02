@@ -1,8 +1,18 @@
+import bcrypt from "bcryptjs";
 import fs from "fs";
+import os from "os";
 import path from "path";
 import { DatabaseSync } from "node:sqlite";
 
-const DATA_DIR = path.join(process.cwd(), "data");
+/**
+ * Vercel serverless has a read-only project root; only e.g. /tmp is writable.
+ * Use a temp dir so SQLite can create app.db + WAL files. Data is ephemeral per
+ * instance (see docs/vercel-deploy.md); demo users are ensured on empty DB.
+ */
+const DATA_DIR =
+  process.env.VERCEL === "1"
+    ? path.join(os.tmpdir(), "mid-fullstack-data")
+    : path.join(process.cwd(), "data");
 const DB_PATH = path.join(DATA_DIR, "app.db");
 
 const DDL = `
@@ -74,7 +84,25 @@ export function getDb(): DatabaseSync {
   migrateUsersImage(db);
   migrateCoworkRooms(db);
   migrateUserPresence(db);
+  ensureVercelDemoUsers(db);
   return db;
+}
+
+/** PM + Developer demo logins when DB is empty (Vercel /tmp starts fresh per instance). */
+function ensureVercelDemoUsers(db: DatabaseSync) {
+  if (process.env.VERCEL !== "1") return;
+  if (process.env.VERCEL_SKIP_DEMO_USERS === "1") return;
+  const row = db.prepare(`SELECT COUNT(*) AS c FROM users`).get() as
+    | { c: number }
+    | undefined;
+  if (!row || row.c > 0) return;
+  const hash = bcrypt.hashSync("password123", 10);
+  db.prepare(
+    `INSERT OR IGNORE INTO users (email, password_hash, role) VALUES (?, ?, ?)`,
+  ).run("pm@example.com", hash, "PM");
+  db.prepare(
+    `INSERT OR IGNORE INTO users (email, password_hash, role) VALUES (?, ?, ?)`,
+  ).run("dev@example.com", hash, "DEVELOPER");
 }
 
 type TableInfoRow = { name: string };
