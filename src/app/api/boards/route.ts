@@ -1,6 +1,8 @@
 import { createBoardSchema } from "@/lib/schemas";
-import { jsonOk, jsonZodError, readJsonBody } from "@/lib/api-response";
+import { jsonErr, jsonOk, jsonZodError, readJsonBody } from "@/lib/api-response";
 import { asNumber, getDb } from "@/lib/db";
+import { getApiUser } from "@/lib/require-api-user";
+import { UserRole } from "@/lib/roles";
 
 type BoardRow = { id: number; name: string; created_at: string };
 
@@ -9,6 +11,9 @@ function mapBoard(row: BoardRow) {
 }
 
 export async function GET() {
+  const authResult = await getApiUser();
+  if (authResult.error) return authResult.error;
+
   const db = getDb();
   const rows = db
     .prepare(
@@ -19,6 +24,12 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const authResult = await getApiUser();
+  if (authResult.error) return authResult.error;
+  if (authResult.user.role !== UserRole.PM) {
+    return jsonErr("FORBIDDEN", "Only PM can create boards", 403);
+  }
+
   const raw = await readJsonBody(request);
   const parsed = createBoardSchema.safeParse(raw);
   if (!parsed.success) return jsonZodError(parsed.error);

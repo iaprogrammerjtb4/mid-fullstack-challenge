@@ -1,6 +1,8 @@
 import { idParamSchema, patchTaskSchema } from "@/lib/schemas";
 import { jsonErr, jsonOk, jsonZodError, readJsonBody } from "@/lib/api-response";
 import { asNumber, getDb } from "@/lib/db";
+import { getApiUser } from "@/lib/require-api-user";
+import { UserRole } from "@/lib/roles";
 
 type TaskRow = {
   id: number;
@@ -23,6 +25,7 @@ function mapTask(row: TaskRow) {
     taskType: row.task_type,
     assigneeName: row.assignee_name,
     createdAt: row.created_at,
+    comments: [] as { id: number; body: string; authorEmail: string; createdAt: string }[],
   };
 }
 
@@ -30,6 +33,10 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
+  const authResult = await getApiUser();
+  if (authResult.error) return authResult.error;
+  const apiUser = authResult.user;
+
   const { id: idStr } = await context.params;
   const idParsed = idParamSchema.safeParse(idStr);
   if (!idParsed.success) return jsonZodError(idParsed.error);
@@ -37,6 +44,21 @@ export async function PATCH(
   const raw = await readJsonBody(request);
   const parsed = patchTaskSchema.safeParse(raw);
   if (!parsed.success) return jsonZodError(parsed.error);
+
+  const hasContentChange =
+    parsed.data.title !== undefined ||
+    parsed.data.description !== undefined ||
+    parsed.data.priority !== undefined ||
+    parsed.data.taskType !== undefined ||
+    parsed.data.assigneeName !== undefined;
+
+  if (hasContentChange && apiUser.role !== UserRole.PM) {
+    return jsonErr(
+      "FORBIDDEN",
+      "Only PM can edit task title, description, priority, type, or assignee",
+      403,
+    );
+  }
 
   const db = getDb();
   const task = db
@@ -99,6 +121,12 @@ export async function DELETE(
   _request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
+  const authResult = await getApiUser();
+  if (authResult.error) return authResult.error;
+  if (authResult.user.role !== UserRole.PM) {
+    return jsonErr("FORBIDDEN", "Only PM can delete tasks", 403);
+  }
+
   const { id: idStr } = await context.params;
   const idParsed = idParamSchema.safeParse(idStr);
   if (!idParsed.success) return jsonZodError(idParsed.error);

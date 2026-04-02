@@ -6,6 +6,8 @@ import {
   readJsonBody,
 } from "@/lib/api-response";
 import { asNumber, getDb } from "@/lib/db";
+import { getApiUser } from "@/lib/require-api-user";
+import { UserRole } from "@/lib/roles";
 
 type ColumnRow = {
   id: number;
@@ -15,6 +17,12 @@ type ColumnRow = {
 };
 
 export async function POST(request: Request) {
+  const authResult = await getApiUser();
+  if (authResult.error) return authResult.error;
+  if (authResult.user.role !== UserRole.PM) {
+    return jsonErr("FORBIDDEN", "Only PM can create columns", 403);
+  }
+
   const raw = await readJsonBody(request);
   const parsed = createColumnSchema.safeParse(raw);
   if (!parsed.success) return jsonZodError(parsed.error);

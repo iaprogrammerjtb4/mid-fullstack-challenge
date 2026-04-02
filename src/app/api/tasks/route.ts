@@ -1,6 +1,8 @@
 import { createTaskSchema } from "@/lib/schemas";
 import { jsonErr, jsonOk, jsonZodError, readJsonBody } from "@/lib/api-response";
 import { asNumber, getDb } from "@/lib/db";
+import { getApiUser } from "@/lib/require-api-user";
+import { UserRole } from "@/lib/roles";
 
 type TaskRow = {
   id: number;
@@ -14,6 +16,12 @@ type TaskRow = {
 };
 
 export async function POST(request: Request) {
+  const authResult = await getApiUser();
+  if (authResult.error) return authResult.error;
+  if (authResult.user.role !== UserRole.PM) {
+    return jsonErr("FORBIDDEN", "Only PM can create tasks", 403);
+  }
+
   const raw = await readJsonBody(request);
   const parsed = createTaskSchema.safeParse(raw);
   if (!parsed.success) return jsonZodError(parsed.error);
@@ -52,6 +60,7 @@ export async function POST(request: Request) {
       taskType: row.task_type,
       assigneeName: row.assignee_name,
       createdAt: row.created_at,
+      comments: [],
     },
     201,
   );

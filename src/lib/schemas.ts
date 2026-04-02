@@ -8,6 +8,12 @@ export const createBoardSchema = z.object({
   name: z.string().min(1, "Name is required").max(200),
 });
 
+export const createCoworkRoomSchema = z.object({
+  boardId: z.coerce.number().int().positive(),
+  title: z.string().trim().min(1).max(120),
+  taskId: z.coerce.number().int().positive().nullable().optional(),
+});
+
 export const createColumnSchema = z.object({
   boardId: z.coerce.number().int().positive(),
   name: z.string().min(1).max(200),
@@ -44,3 +50,30 @@ export const patchTaskSchema = z
   );
 
 export const idParamSchema = z.coerce.number().int().positive();
+
+export const adminUserRoleSchema = z.enum(["PM", "DEVELOPER"]);
+
+export const adminCreateUserSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  role: adminUserRoleSchema,
+});
+
+export const adminPatchUserSchema = z
+  .object({
+    email: z.string().email().optional(),
+    role: adminUserRoleSchema.optional(),
+    newPassword: z
+      .string()
+      .min(8, "Password must be at least 8 characters")
+      .optional(),
+    clearImage: z.boolean().optional(),
+  })
+  .refine(
+    (o) =>
+      o.email !== undefined ||
+      o.role !== undefined ||
+      o.newPassword !== undefined ||
+      o.clearImage === true,
+    { message: "At least one field to update" },
+  );

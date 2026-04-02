@@ -10,6 +10,13 @@ export type BoardSummary = {
   createdAt: string;
 };
 
+export type TaskComment = {
+  id: number;
+  body: string;
+  authorEmail: string;
+  createdAt: string;
+};
+
 export type Task = {
   id: number;
   columnId: number;
@@ -19,6 +26,7 @@ export type Task = {
   taskType: TaskType;
   assigneeName: string;
   createdAt: string;
+  comments: TaskComment[];
 };
 
 export type ColumnWithTasks = {
