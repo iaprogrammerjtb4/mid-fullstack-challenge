@@ -25,7 +25,7 @@ En **Project → Settings → Environment Variables**, añade al menos:
 
 | Variable | Entorno | Descripción |
 | -------- | ------- | ----------- |
-| `AUTH_SECRET` | Production | Obligatorio. Genera uno: `openssl rand -base64 32` |
+| `AUTH_SECRET` | Production (y **Build** si Vercel lo separa) | Obligatorio en **runtime** para sesiones. Genera uno: `openssl rand -base64 32`. El código permite el build sin esta variable; aun así conviene definirla también para el paso de build si tu panel lo distingue. |
 | `AUTH_URL` | Production | URL pública del sitio, **sin barra final**. Ej: `https://tu-app.vercel.app` |
 
 Opcionales (si usas esas funciones):
