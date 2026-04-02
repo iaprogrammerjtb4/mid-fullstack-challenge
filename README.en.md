@@ -10,12 +10,14 @@ Solution for [Red-Valley/mid-fullstack-challenge](https://github.com/Red-Valley/
 
 ## Quick start
 
+Copy `.env.example` to `.env.local` and set **`AUTH_SECRET`** (e.g. `openssl rand -base64 32`). Auth.js requires it for sign-in and production builds.
+
 ```bash
 # Install dependencies (use one package manager consistently)
 bun install
 # or: npm install
 
-# Optional: load sample data (one board: "Sample board")
+# Sample board + demo users (see below)
 bun run seed
 # or: npm run seed
 
@@ -24,7 +26,14 @@ bun run dev
 # or: npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Create a board or open **Sample board** after seeding, then open the board to use the Kanban view.
+Open [http://localhost:3000](http://localhost:3000) — you are sent to **/login** if not signed in. After seeding, demo users:
+
+| Email | Role | Password |
+| ----- | ---- | -------- |
+| `pm@example.com` | PM | `password123` |
+| `dev@example.com` | DEVELOPER | `password123` |
+
+**PM** can create boards (`/create-board`), columns, tasks, assignees, and delete tasks. **DEVELOPER** can move tasks (drag-and-drop / status) and add comments; “New board” and task delete are hidden and API blocks those actions.
 
 ### Node version (npm / no Bun)
 

@@ -10,12 +10,14 @@ Solución para [Red-Valley/mid-fullstack-challenge](https://github.com/Red-Valle
 
 ## Inicio rápido
 
+Copia `.env.example` a `.env.local` y define **`AUTH_SECRET`** (p. ej. salida de `openssl rand -base64 32`). Sin esto, Auth.js fallará al iniciar sesión o al hacer build.
+
 ```bash
 # Instalar dependencias (usa un solo gestor de paquetes de forma consistente)
 bun install
 # o: npm install
 
-# Opcional: cargar datos de ejemplo (un tablero: "Sample board")
+# Carga tablero de ejemplo y usuarios demo (ver abajo)
 bun run seed
 # o: npm run seed
 
@@ -24,7 +26,14 @@ bun run dev
 # o: npm run dev
 ```
 
-Abre [http://localhost:3000](http://localhost:3000). Crea un tablero o abre **Sample board** después del seed y entra al tablero para ver el Kanban.
+Abre [http://localhost:3000](http://localhost:3000) → te redirige a **/login** si no hay sesión. Tras el seed, usuarios de prueba:
+
+| Email | Rol | Contraseña |
+| ----- | --- | ------------ |
+| `pm@example.com` | PM | `password123` |
+| `dev@example.com` | DEVELOPER | `password123` |
+
+El **PM** puede crear tableros (`/create-board`), columnas, tareas, asignar responsables y eliminar. El **DEVELOPER** mueve tareas (arrastrar o menú según UI) y comenta; no crea tableros ni ve “New board” / eliminar tareas.
 
 ### Versión de Node (npm / sin Bun)
 
