@@ -117,6 +117,26 @@ Detalle de implementación: `src/app/api/**`, esquemas en `src/lib/schemas.ts`, 
 
 ---
 
+## Despliegue en Vercel
+
+1. Conecta el repo a [Vercel](https://vercel.com), framework **Next.js**, Node **22.x**.
+2. Variables mínimas en producción: **`AUTH_SECRET`** y **`AUTH_URL`** (URL pública del deploy, sin barra final).
+3. **Importante:** este proyecto guarda datos en **SQLite local** (`data/app.db`). En Vercel (serverless) **no hay disco persistente** para eso: el build puede subir, pero los datos no se comportan como en tu máquina. Para producción seria en Vercel hace falta una **base remota** (p. ej. Turso, Neon, Postgres) o desplegar el stack en un servicio con **disco persistente** (Railway, Render, Fly, VPS).
+4. El **chat Socket.io** (`bun run socket`) debe correr en **otro servicio**; en Vercel define **`NEXT_PUBLIC_CHAT_SOCKET_URL`** apuntando a esa URL.
+
+Guía detallada (variables, LiveKit, limitaciones): **[`docs/vercel-deploy.md`](./docs/vercel-deploy.md)**. En la raíz hay un **`vercel.json`** mínimo para el preset de Next.js.
+
+---
+
 ## Asistencia con IA
 
-Partes de esta solución se construyeron con **herramientas asistidas por IA** (por ejemplo Cursor / herramientas tipo Copilot) para scaffolding, cableado de API, patrones de UI y documentación. Todo el código fue **revisado y ajustado** para alinearlo con el challenge y poder explicarlo en una revisión.
+Gran parte de este proyecto se desarrolló con **Claude Code** y **Cursor** (agente, planificación y edición asistida), combinando flujos de trabajo tipo *prompts* orientados a velocidad y calidad — en la línea de materiales como *“7 prompts para programar más rápido”* (PDF de referencia en el flujo de trabajo del autor).
+
+En Cursor se apoyó en **Skills** y contextos especializados, entre otros:
+
+- **Arquitectura de software** — decisiones de capas, API, datos y límites del dominio.
+- **Desarrollo backend** — rutas REST, validación, SQLite y contratos JSON coherentes.
+- **Voz sobre IP (VoIP) y comunicaciones en tiempo real** — donde aplica al tablero (chat, llamadas / salas, señalización y consideraciones de medios).
+- **Streaming y datos en vivo** — patrones para eventos en tiempo casi real, sockets o canales equivalentes usados en la solución.
+
+El resultado se **revisó y ajustó manualmente** para cumplir el brief del challenge y poder defender cada decisión en una revisión técnica.

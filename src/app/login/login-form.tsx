@@ -1,7 +1,6 @@
 "use client";
 
 import { signIn } from "next-auth/react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { FlowKanbanLogo } from "@/components/brand/flowkanban-logo";
@@ -86,14 +85,6 @@ export function LoginForm() {
           {pending ? t("login.signingIn") : t("login.submit")}
         </button>
       </form>
-      <p className="mt-5 text-center text-xs text-slate-500 dark:text-slate-400">
-        <Link
-          href="/"
-          className="font-medium text-flow-cyan hover:underline dark:text-flow-cyan"
-        >
-          {t("login.home")}
-        </Link>
-      </p>
     </div>
   );
 }

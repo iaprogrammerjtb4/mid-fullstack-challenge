@@ -117,6 +117,26 @@ Implementation details: `src/app/api/**`, schemas in `src/lib/schemas.ts`, helpe
 
 ---
 
+## Deploying to Vercel
+
+1. Connect the repo to [Vercel](https://vercel.com), **Next.js** preset, Node **22.x**.
+2. Minimum production env vars: **`AUTH_SECRET`** and **`AUTH_URL`** (your public deployment URL, no trailing slash).
+3. **Important:** this app uses **on-disk SQLite** (`data/app.db`). Vercel serverless has **no durable writable disk** for that pattern: the site may build, but data will not behave like on your laptop. For serious production on Vercel you need a **remote database** (e.g. Turso, Neon, Postgres) or deploy on a host with **persistent disk** (Railway, Render, Fly, VPS).
+4. **Socket.io** (`bun run socket`) must run as a **separate service**; on Vercel set **`NEXT_PUBLIC_CHAT_SOCKET_URL`** to that service’s public URL.
+
+Full checklist (env vars, LiveKit, caveats): **[`docs/vercel-deploy.md`](./docs/vercel-deploy.md)** (Spanish). Root **`vercel.json`** sets the Next.js framework preset.
+
+---
+
 ## AI assistance
 
-Parts of this solution were built with **AI-assisted tooling** (e.g. Cursor / Copilot-class tools) for scaffolding, API wiring, UI patterns, and documentation. All code was **reviewed and adjusted** so it matches the challenge requirements and is code I can explain in review.
+Much of this project was built with **Claude Code** and **Cursor** (agent, planning, and assisted editing), using prompt-style workflows aimed at speed and quality — along the lines of resources such as *“7 prompts to code faster”* (PDF used as a reference in the author’s workflow).
+
+In Cursor, **Skills** and specialized contexts included, among others:
+
+- **Software architecture** — layering, API design, data boundaries, and domain scope.
+- **Backend development** — REST routes, validation, SQLite, and consistent JSON contracts.
+- **Voice over IP (VoIP) and real-time communications** — as they apply to the board (chat, calls / rooms, signaling, and media considerations).
+- **Streaming and live data** — patterns for near–real-time events, sockets, or equivalent channels used in the solution.
+
+Everything was **manually reviewed and tuned** to meet the challenge brief and to be explainable in a technical review.

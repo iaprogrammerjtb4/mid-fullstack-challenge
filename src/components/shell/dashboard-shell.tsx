@@ -19,7 +19,7 @@ import { useUser } from "@/hooks/use-user";
 import { useDashboardMeta } from "@/components/shell/dashboard-meta-provider";
 import { GlobalBoardChatDock } from "@/components/board/GlobalBoardChatDock";
 import { PresenceHeartbeat } from "@/components/presence/presence-heartbeat";
-import { ProductTour } from "@/components/shell/product-tour";
+import { WelcomePortal } from "@/components/shell/welcome-portal";
 import { useLocale } from "@/i18n/locale-provider";
 
 function initials(email: string) {
@@ -110,7 +110,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   return (
     <>
       <PresenceHeartbeat />
-      <ProductTour />
+      <WelcomePortal />
       <div className="flex min-h-screen min-h-[100dvh] bg-background text-slate-900 transition-colors duration-200 dark:bg-slate-950 dark:text-slate-100">
         {/* Desktop sidebar */}
         <aside

@@ -67,8 +67,54 @@ const en: Dict = {
     password: "Password",
     signingIn: "Signing in…",
     submit: "Sign in",
-    home: "Home",
     loading: "Loading sign-in…",
+    splashA11y: "Loading FlowKanban",
+  },
+  welcomePortal: {
+    tagline: "Agile project workspace",
+    title: "Welcome to FlowKanban",
+    lead:
+      "A Kanban-style platform to visualize your backlog, align the team, and collaborate in one place—from stories on the board to live conversation.",
+    featureBoards:
+      "Visual boards with columns and cards: track work through each stage and keep everyone aligned.",
+    featureReports:
+      "Insights for product managers: analytics and team signals help you spot bottlenecks and balance the flow.",
+    featureChatVoice:
+      "Real-time communication: board chat and voice rooms so context stays where the work happens.",
+    featureCowork:
+      "Virtual coworking: breakout rooms for pair programming, screen sharing, and focused sessions linked to your tasks.",
+    tourHint:
+      "Next, a short guided tour will highlight the main controls on your current screen.",
+    creditPrefix: "Designed and built by",
+    creditName: "Jeison Támara",
+    creditSite: "iaprogrammer.net",
+    cta: "Continue to tour",
+    skip: "Skip introduction",
+  },
+  loginOnboarding: {
+    badge: "Quick tour",
+    skip: "Skip tour",
+    next: "Next",
+    back: "Back",
+    getStarted: "Continue to sign in",
+    progress: "Step {current} of {total}",
+    progressLabel: "Onboarding steps",
+    goToSlide: "Go to slide {n}",
+    slide1Title: "Boards that match how teams work",
+    slide1Body:
+      "Organize work in columns and cards—move stories from backlog to done and keep history visible for everyone on the same surface.",
+    slide2Title: "Insights for product leads",
+    slide2Body:
+      "Reports and flow signals help PMs spot bottlenecks, balance load, and decide what ships next with less guesswork.",
+    slide3Title: "Talk where the work lives",
+    slide3Body:
+      "Board chat and voice rooms keep decisions next to the task, so context does not get lost across different tools.",
+    slide4Title: "Coworking without leaving the board",
+    slide4Body:
+      "Open breakout spaces for pair programming and screen sharing, linked to the cards you are working on—right inside your workspace.",
+    creditPrefix: "Designed and built by",
+    creditName: "Jeison Támara",
+    creditSite: "iaprogrammer.net",
   },
   tour: {
     back: "Back",
@@ -423,8 +469,54 @@ const es: Dict = {
     password: "Contraseña",
     signingIn: "Entrando…",
     submit: "Entrar",
-    home: "Inicio",
     loading: "Cargando inicio de sesión…",
+    splashA11y: "Cargando FlowKanban",
+  },
+  welcomePortal: {
+    tagline: "Espacio ágil de proyectos",
+    title: "Bienvenido a FlowKanban",
+    lead:
+      "Una plataforma tipo Kanban para visualizar el backlog, alinear al equipo y colaborar en un solo lugar: desde las historias en el tablero hasta la conversación en vivo.",
+    featureBoards:
+      "Tableros con columnas y tarjetas: sigue el trabajo en cada etapa y mantén al equipo alineado.",
+    featureReports:
+      "Información para PM: analíticas y señales de flujo para detectar cuellos de botella y equilibrar la carga.",
+    featureChatVoice:
+      "Comunicación en tiempo real: chat del tablero y salas de voz para que el contexto quede junto al trabajo.",
+    featureCowork:
+      "Coworking virtual: salas para pair programming, compartir pantalla y sesiones enfocadas vinculadas a tus tareas.",
+    tourHint:
+      "A continuación, un tour breve te mostrará los controles principales en esta pantalla.",
+    creditPrefix: "Diseñado y desarrollado por",
+    creditName: "Jeison Támara",
+    creditSite: "iaprogrammer.net",
+    cta: "Continuar al tour",
+    skip: "Saltar introducción",
+  },
+  loginOnboarding: {
+    badge: "Tour rápido",
+    skip: "Saltar tour",
+    next: "Siguiente",
+    back: "Atrás",
+    getStarted: "Ir a iniciar sesión",
+    progress: "Paso {current} de {total}",
+    progressLabel: "Pasos del tour",
+    goToSlide: "Ir a la diapositiva {n}",
+    slide1Title: "Tableros al ritmo de tu equipo",
+    slide1Body:
+      "Organiza el trabajo en columnas y tarjetas: lleva historias del backlog al hecho y mantén el historial visible para todo el equipo en un mismo lienzo.",
+    slide2Title: "Visibilidad para liderar el producto",
+    slide2Body:
+      "Informes y señales de flujo ayudan a los PM a ver cuellos de botella, repartir carga y priorizar qué entrega sigue.",
+    slide3Title: "Conversa junto al trabajo",
+    slide3Body:
+      "Chat del tablero y salas de voz mantienen las decisiones al lado de la tarea, sin perder contexto entre herramientas.",
+    slide4Title: "Coworking sin salir del tablero",
+    slide4Body:
+      "Abre espacios para pair programming y compartir pantalla, enlazados a las tarjetas en las que trabajas—dentro del mismo espacio.",
+    creditPrefix: "Diseñado y desarrollado por",
+    creditName: "Jeison Támara",
+    creditSite: "iaprogrammer.net",
   },
   tour: {
     back: "Atrás",

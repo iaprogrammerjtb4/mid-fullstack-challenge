@@ -78,7 +78,7 @@ function buildSteps(opts: {
   return out;
 }
 
-export function ProductTour() {
+export function ProductTour({ blocked = false }: { blocked?: boolean }) {
   const pathname = usePathname();
   const { data: session, status } = useSession();
   const { isPm, isDeveloper } = useUser();
@@ -99,7 +99,8 @@ export function ProductTour() {
     status === "authenticated" &&
     !!email &&
     typeof window !== "undefined" &&
-    !tourCompleted;
+    !tourCompleted &&
+    !blocked;
 
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect -- tour steps depend on DOM targets and auth; reset or rebuild on deps */
