@@ -1,107 +1,142 @@
-## Technical Challenge — Mid-Level
+# Challenge Fullstack Mid-Level — Solución
 
-### Background
+Solución para [Red-Valley/mid-fullstack-challenge](https://github.com/Red-Valley/mid-fullstack-challenge): un **tablero tipo Kanban** con **API REST**, **SQLite** e interfaz **Next.js (App Router)** con **Tailwind CSS**. La entrada se valida con **Zod**; las respuestas usan un único formato JSON para éxito y error.
 
-A small project management startup wants to build a simple internal tool for their team to organize work visually. They need a basic task board where team members can create boards, organize tasks into columns, and move tasks between stages.
+**Runtime:** [Bun](https://bun.sh) (según el brief) o **Node.js ≥ 22.5** (necesario para [`node:sqlite`](https://nodejs.org/api/sqlite.html)). El mismo código funciona con `bun` o `npm`.
 
-In this challenge, you'll build a simplified task board application with a REST API, a database, and a functional UI.
+*[English version →](./README.en.md)*
 
-We are **not evaluating specific tools or patterns**. We simply want to understand how you think, how you code, and how you approach real-world problems. Be yourself.
+---
 
+## Inicio rápido
 
-### What You Need to Build
+Copia `.env.example` a `.env.local` y define **`AUTH_SECRET`** (p. ej. salida de `openssl rand -base64 32`). Sin esto, Auth.js fallará al iniciar sesión o al hacer build.
 
-A functional **full stack application** with the ability to:
+```bash
+# Instalar dependencias (usa un solo gestor de paquetes de forma consistente)
+bun install
+# o: npm install
 
-1. Create and view boards
-2. Add columns to a board
-3. Create, update, and delete tasks within columns
-4. Move tasks between columns
-5. View a board in a kanban-style layout
+# Carga tablero de ejemplo y usuarios demo (ver abajo)
+bun run seed
+# o: npm run seed
 
+# Servidor de desarrollo
+bun run dev
+# o: npm run dev
+```
 
-### Database Schema
+Abre [http://localhost:3000](http://localhost:3000) → te redirige a **/login** si no hay sesión. Tras el seed, usuarios de prueba:
 
-Design the schema yourself. At minimum, you should support:
+| Email | Rol | Contraseña |
+| ----- | --- | ------------ |
+| `pm@example.com` | PM | `password123` |
+| `dev@example.com` | DEVELOPER | `password123` |
 
-- **Boards** with a name and creation date
-- **Columns** belonging to a board, with a name and display order
-- **Tasks** belonging to a column, with: title, description, priority, and creation date
+El **PM** puede crear tableros (`/create-board`), columnas, tareas, asignar responsables y eliminar. El **DEVELOPER** mueve tareas (arrastrar o menú según UI) y comenta; no crea tableros ni ve “New board” / eliminar tareas.
 
-Include appropriate indexes and a seed script that creates one board with sample data.
+### Versión de Node (npm / sin Bun)
 
+Si usas **nvm** (por ejemplo nvm-windows), el repo incluye `.nvmrc` (`22`):
 
-### Tech Stack
+```bash
+nvm install 22
+nvm use 22
+node -v   # debería ser v22.x (≥ 22.5)
+```
 
-#### Backend
+---
 
-* Runtime: **Bun**
-* Framework: **Next.js** (App Router)
-* Database: **SQLite** (ORM, query builder, or raw SQL — your choice)
+## Qué incluye
 
-#### Frontend
+| Área | Notas |
+| ---- | ----- |
+| **Tableros y columnas** | Crear tableros; añadir columnas con orden de visualización (único por tablero). |
+| **Tareas** | Crear, actualizar (incluido mover a otra columna del **mismo** tablero), eliminar. |
+| **API** | Todas las rutas requeridas; validación; HTTP 400 / 404 / 409 cuando corresponde; envoltorio JSON uniforme. |
+| **UI** | Lista de tableros, columnas Kanban, **modal** para nuevas tareas, **desplegable** para mover tareas, **arrastrar y soltar** entre columnas (extra), estados de carga y vacíos. |
+| **Datos** | Archivo SQLite `data/app.db` (se crea al primer uso; **ignorado por git**). |
+| **Seed** | `scripts/seed.ts` — un tablero de ejemplo con columnas y tareas. |
 
-* Framework: **Next.js**
-* Styling: **TailwindCSS**
-* Additional UI libraries are welcome but not required
+### Campos opcionales (más allá del mínimo del brief)
 
+Las tareas también admiten **`taskType`** (`bug` \| `story` \| `task`), **`assigneeName`** (mostrado como iniciales en las tarjetas), y la UI incluye badges de prioridad y un layout ligero tipo “enterprise”. El esquema mínimo del challenge (nombre/fecha de creación, columnas, título/descripción/prioridad/fecha de tarea) queda **totalmente cubierto**.
 
-### Required API Endpoints
+---
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/boards` | List all boards |
-| POST | `/api/boards` | Create a board |
-| GET | `/api/boards/:id` | Get a board with its columns and tasks |
-| POST | `/api/columns` | Create a column (linked to a board) |
-| POST | `/api/tasks` | Create a task (linked to a column) |
-| PATCH | `/api/tasks/:id` | Update a task (title, description, move to another column) |
-| DELETE | `/api/tasks/:id` | Delete a task |
+## Scripts
 
-- Validate input on every endpoint.
-- Return proper HTTP status codes (400, 404, etc.).
-- Use a consistent JSON response structure.
+| Comando | Descripción |
+| ------- | ----------- |
+| `bun run dev` / `npm run dev` | Servidor de desarrollo Next.js (Turbopack) |
+| `bun run build` / `npm run build` | Build de producción |
+| `bun run start` / `npm start` | Ejecutar el build de producción |
+| `bun run seed` / `npm run seed` | Seed del tablero **Sample board** (idempotente: sustituye un tablero existente con el mismo nombre) |
+| `bun run lint` / `npm run lint` | ESLint |
 
+---
 
-### Required UI
+## Resumen de la API
 
-1. A page showing a board in **kanban-style layout** (columns side by side, tasks as cards)
-2. Ability to **create a new task** via a modal or dialog
-3. Ability to **move a task** between columns (a simple dropdown is fine, no drag-and-drop required)
-4. Loading and empty states
+Todas las respuestas JSON siguen:
 
+- **Éxito:** `{ "ok": true, "data": … }`
+- **Error:** `{ "ok": false, "error": { "code", "message", "details?" } }`
 
-### Submission Instructions
+| Método | Ruta | Descripción |
+| ------ | ---- | ----------- |
+| `GET` | `/api/boards` | Listar tableros |
+| `POST` | `/api/boards` | Cuerpo: `{ "name" }` |
+| `GET` | `/api/boards/:id` | Tablero con columnas y tareas anidadas |
+| `POST` | `/api/columns` | Cuerpo: `{ "boardId", "name", "displayOrder" }` |
+| `POST` | `/api/tasks` | Cuerpo: `{ "columnId", "title", "description?", "priority?", "taskType?", "assigneeName?" }` |
+| `PATCH` | `/api/tasks/:id` | Actualización parcial: `title`, `description`, `columnId` (solo mismo tablero), `priority`, `taskType`, `assigneeName` |
+| `DELETE` | `/api/tasks/:id` | Eliminar tarea |
 
-* **Fork this repository**, complete your work, and **submit a pull request**.
-* Include a `README.md` with:
-  * Clear instructions to run the project locally
-  * A short explanation of your architecture or design decisions
-  * A seed script to preload sample data
+Detalle de implementación: `src/app/api/**`, esquemas en `src/lib/schemas.ts`, helpers en `src/lib/api-response.ts`.
 
+---
 
-### Time Expectation
+## Arquitectura y decisiones de diseño
 
-You should spend no more than **2 hours** on this task.
+- **`src/lib/db.ts`** — SQLite (`data/app.db`), esquema, índices, claves foráneas (`ON DELETE CASCADE`), WAL. Usa **`node:sqlite`** para no depender de compilación de addons nativos (útil en Windows). Una **migración** pequeña añade columnas en bases ya existentes si el esquema cambió tras el primer arranque.
+- **`src/lib/schemas.ts` + `src/lib/api-response.ts`** — Zod en todas las rutas que mutan y en los ids; formato de error compartido y flatten de Zod para 400.
+- **`src/app/api/**`** — Handlers finos: parsear → validar → consultar → devolver JSON (sin ORM).
+- **`src/app/page.tsx`** — Lista de tableros y crear tablero.
+- **`src/app/boards/[id]/page.tsx`** — Kanban: columnas, tarjetas (`src/components/kanban/`), modal para nuevas tareas, mover con `<select>` y arrastrar y soltar opcional.
 
-Don't worry if you can't finish everything. What matters most is **how far you get** and **how you approach the problem**.
+**Trade-offs:** `node:sqlite` sigue siendo experimental en Node; exigir **≥ 22.5** mantiene el comportamiento predecible. El `display_order` de la columna es único por tablero (simple; en producción podrían usarse índices fraccionarios o un endpoint de reordenación). El orden de tareas dentro de una columna sigue `created_at` (al mover solo se actualiza `column_id`; no hay clave de orden dentro de la columna).
 
+---
 
-### Evaluation & Guidance
+## Base de datos
 
-What we mainly evaluate:
+- **Tipo:** SQLite (un solo archivo).
+- **Ubicación:** `data/app.db` en la raíz del proyecto (ignorado por git).
+- **Inspección:** Cualquier cliente SQLite (por ejemplo [DB Browser for SQLite](https://sqlitebrowser.org/)) o la CLI, con el servidor de desarrollo detenido o en solo lectura si tu herramienta lo permite.
 
-- Solution design and structure (architecture, modularity, separation of concerns).
-- Clarity of reasoning and documentation (decisions, trade-offs, assumptions).
-- Code quality (readability, consistency, error handling, good practices).
-- API design (RESTful conventions, validation, error responses).
-- UI completeness and usability.
-- Git workflow (incremental commits with clear messages).
-- Prioritization and scope management: it's valid to leave items pending if you explain what and why.
+---
 
-Use of AI (optional but allowed):
+## Despliegue en Vercel
 
-- You may use AI tools (e.g., Claude, Copilot, ChatGPT, Cursor) to assist with your solution.
-- We care most about how you structure the solution and explain your decisions.
-- If you used AI, add a brief note in your PR/README: which tools you used, which parts were assisted, and what changes you made after review.
-- Only include code you understand and can justify.
+1. Conecta el repo a [Vercel](https://vercel.com), framework **Next.js**, Node **22.x**.
+2. Variables mínimas en producción: **`AUTH_SECRET`** y **`AUTH_URL`** (URL pública del deploy, sin barra final).
+3. **Importante:** este proyecto guarda datos en **SQLite local** (`data/app.db`). En Vercel (serverless) **no hay disco persistente** para eso: el build puede subir, pero los datos no se comportan como en tu máquina. Para producción seria en Vercel hace falta una **base remota** (p. ej. Turso, Neon, Postgres) o desplegar el stack en un servicio con **disco persistente** (Railway, Render, Fly, VPS).
+4. El **chat Socket.io** (`bun run socket`) debe correr en **otro servicio**; en Vercel define **`NEXT_PUBLIC_CHAT_SOCKET_URL`** apuntando a esa URL.
+
+Guía detallada (variables, LiveKit, limitaciones): **[`docs/vercel-deploy.md`](./docs/vercel-deploy.md)**. En la raíz hay un **`vercel.json`** mínimo para el preset de Next.js.
+
+---
+
+## Asistencia con IA
+
+Gran parte de este proyecto se desarrolló con **Claude Code** y **Cursor** (agente, planificación y edición asistida), combinando flujos de trabajo tipo *prompts* orientados a velocidad y calidad — en la línea de materiales como *“7 prompts para programar más rápido”* (PDF de referencia en el flujo de trabajo del autor).
+
+En Cursor se apoyó en **Skills** y contextos especializados, entre otros:
+
+- **Arquitectura de software** — decisiones de capas, API, datos y límites del dominio.
+- **Desarrollo backend** — rutas REST, validación, SQLite y contratos JSON coherentes.
+- **Voz sobre IP (VoIP) y comunicaciones en tiempo real** — donde aplica al tablero (chat, llamadas / salas, señalización y consideraciones de medios).
+- **Streaming y datos en vivo** — patrones para eventos en tiempo casi real, sockets o canales equivalentes usados en la solución.
+
+El resultado se **revisó y ajustó manualmente** para cumplir el brief del challenge y poder defender cada decisión en una revisión técnica.
