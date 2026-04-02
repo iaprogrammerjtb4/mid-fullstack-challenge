@@ -41,28 +41,42 @@ function main() {
   const doingId = Number(colDoing.lastInsertRowid);
   const doneId = Number(colDone.lastInsertRowid);
 
-  db.prepare(
-    `INSERT INTO tasks (column_id, title, description, priority) VALUES (?, ?, ?, ?)`,
-  ).run(
+  const ins = db.prepare(
+    `INSERT INTO tasks (column_id, title, description, priority, task_type, assignee_name) VALUES (?, ?, ?, ?, ?, ?)`,
+  );
+
+  ins.run(
     todoId,
     "Sketch data model",
     "Boards, columns, tasks + indexes",
     "high",
+    "story",
+    "Alex Kim",
   );
-  db.prepare(
-    `INSERT INTO tasks (column_id, title, description, priority) VALUES (?, ?, ?, ?)`,
-  ).run(todoId, "Define API contract", "REST + validation", "medium");
-  db.prepare(
-    `INSERT INTO tasks (column_id, title, description, priority) VALUES (?, ?, ?, ?)`,
-  ).run(
+  ins.run(
+    todoId,
+    "Define API contract",
+    "REST + validation",
+    "medium",
+    "task",
+    "Jordan Lee",
+  );
+  ins.run(
     doingId,
     "Build Kanban UI",
     "Modal for new task, dropdown move",
     "high",
+    "bug",
+    "Sam Rivera",
   );
-  db.prepare(
-    `INSERT INTO tasks (column_id, title, description, priority) VALUES (?, ?, ?, ?)`,
-  ).run(doneId, "Write README", "Run + architecture notes", "low");
+  ins.run(
+    doneId,
+    "Write README",
+    "Run + architecture notes",
+    "low",
+    "story",
+    "",
+  );
 
   console.log(`Seed OK. Board id=${boardId} ("Sample board")`);
 }

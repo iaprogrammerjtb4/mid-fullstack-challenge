@@ -30,6 +30,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   title TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
   priority TEXT NOT NULL DEFAULT 'medium',
+  task_type TEXT NOT NULL DEFAULT 'task',
+  assignee_name TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_tasks_column_id ON tasks(column_id);
@@ -47,7 +49,21 @@ export function getDb(): DatabaseSync {
   db.exec("PRAGMA foreign_keys = ON;");
   db.exec("PRAGMA journal_mode = WAL;");
   db.exec(DDL);
+  migrateTasksTable(db);
   return db;
+}
+
+type TableInfoRow = { name: string };
+
+function migrateTasksTable(db: DatabaseSync) {
+  const cols = db.prepare(`PRAGMA table_info(tasks)`).all() as TableInfoRow[];
+  const names = new Set(cols.map((c) => c.name));
+  if (!names.has("task_type")) {
+    db.exec(`ALTER TABLE tasks ADD COLUMN task_type TEXT NOT NULL DEFAULT 'task'`);
+  }
+  if (!names.has("assignee_name")) {
+    db.exec(`ALTER TABLE tasks ADD COLUMN assignee_name TEXT NOT NULL DEFAULT ''`);
+  }
 }
 
 /** Normalize rowid/changes from node:sqlite (number | bigint). */

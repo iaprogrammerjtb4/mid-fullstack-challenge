@@ -1,91 +1,113 @@
-# Mid-Level Fullstack Technical Challenge — Solution
+# Challenge Fullstack Mid-Level — Solución
 
-Task board (**Next.js App Router**, **SQLite**, **Tailwind CSS**, **Zod** validation). **Runtime: [Bun](https://bun.sh)** per the challenge brief; **Node.js 22.5+** is also supported. The app uses Node’s [`node:sqlite`](https://nodejs.org/api/sqlite.html) (`DatabaseSync`), which Bun implements for compatibility—same code path for `bun run dev` / `npm run dev`.
+Solución para [Red-Valley/mid-fullstack-challenge](https://github.com/Red-Valley/mid-fullstack-challenge): un **tablero tipo Kanban** con **API REST**, **SQLite** e interfaz **Next.js (App Router)** con **Tailwind CSS**. La entrada se valida con **Zod**; las respuestas usan un único formato JSON para éxito y error.
 
-## Run locally
+**Runtime:** [Bun](https://bun.sh) (según el brief) o **Node.js ≥ 22.5** (necesario para [`node:sqlite`](https://nodejs.org/api/sqlite.html)). El mismo código funciona con `bun` o `npm`.
 
-### With Bun (challenge brief)
+*[English version →](./README.en.md)*
 
-Install [Bun](https://bun.sh/docs/installation), then from the project root:
+---
+
+## Inicio rápido
 
 ```bash
+# Instalar dependencias (usa un solo gestor de paquetes de forma consistente)
 bun install
-bun run seed   # optional: one board "Sample board" with columns and tasks
+# o: npm install
+
+# Opcional: cargar datos de ejemplo (un tablero: "Sample board")
+bun run seed
+# o: npm run seed
+
+# Servidor de desarrollo
 bun run dev
+# o: npm run dev
 ```
 
-### With Node + npm
+Abre [http://localhost:3000](http://localhost:3000). Crea un tablero o abre **Sample board** después del seed y entra al tablero para ver el Kanban.
 
-**Requirements:** Node **≥ 22.5** (for `node:sqlite`).
+### Versión de Node (npm / sin Bun)
 
-**nvm (Windows / nvm-windows):** the repo includes `.nvmrc` with `22`.
+Si usas **nvm** (por ejemplo nvm-windows), el repo incluye `.nvmrc` (`22`):
 
 ```bash
 nvm install 22
 nvm use 22
-node -v   # v22.x.x (≥ 22.5)
+node -v   # debería ser v22.x (≥ 22.5)
 ```
 
-```bash
-npm install
-npm run seed   # optional
-npm run dev
-```
+---
 
-Open [http://localhost:3000](http://localhost:3000). Open a board from the list to see the Kanban view.
+## Qué incluye
 
-## Challenge checklist
+| Área | Notas |
+| ---- | ----- |
+| **Tableros y columnas** | Crear tableros; añadir columnas con orden de visualización (único por tablero). |
+| **Tareas** | Crear, actualizar (incluido mover a otra columna del **mismo** tablero), eliminar. |
+| **API** | Todas las rutas requeridas; validación; HTTP 400 / 404 / 409 cuando corresponde; envoltorio JSON uniforme. |
+| **UI** | Lista de tableros, columnas Kanban, **modal** para nuevas tareas, **desplegable** para mover tareas, **arrastrar y soltar** entre columnas (extra), estados de carga y vacíos. |
+| **Datos** | Archivo SQLite `data/app.db` (se crea al primer uso; **ignorado por git**). |
+| **Seed** | `scripts/seed.ts` — un tablero de ejemplo con columnas y tareas. |
 
-| Requirement | How it’s met |
-| ----------- | ------------ |
-| Boards (name, creation date) | `boards` table; `GET/POST /api/boards` |
-| Columns per board (name, display order) | `columns` + unique `(board_id, display_order)`; `POST /api/columns` |
-| Tasks (title, description, priority, creation date) | `tasks` table; `POST/PATCH/DELETE /api/tasks` |
-| Indexes | See `src/lib/db.ts` (boards, columns, tasks, FKs + WAL) |
-| Seed script | `npm run seed` / `bun run seed` → `scripts/seed.ts` |
-| API endpoints + validation + status codes | `src/app/api/**` + Zod in `src/lib/schemas.ts` |
-| Consistent JSON | `{ ok, data }` / `{ ok: false, error: { code, message, details? } }` in `src/lib/api-response.ts` |
-| Kanban UI, modal new task, dropdown move | `src/app/boards/[id]/page.tsx` |
-| Loading & empty states | Home + board pages |
+### Campos opcionales (más allá del mínimo del brief)
+
+Las tareas también admiten **`taskType`** (`bug` \| `story` \| `task`), **`assigneeName`** (mostrado como iniciales en las tarjetas), y la UI incluye badges de prioridad y un layout ligero tipo “enterprise”. El esquema mínimo del challenge (nombre/fecha de creación, columnas, título/descripción/prioridad/fecha de tarea) queda **totalmente cubierto**.
+
+---
 
 ## Scripts
 
-| Command | Description |
+| Comando | Descripción |
 | ------- | ----------- |
-| `bun run dev` / `npm run dev` | Next.js dev (Turbopack) |
-| `bun run build` / `npm run build` | Production build |
-| `bun run start` / `npm start` | Serve production build |
-| `bun run seed` / `npm run seed` | One board `"Sample board"` (replaces existing row with same name) |
+| `bun run dev` / `npm run dev` | Servidor de desarrollo Next.js (Turbopack) |
+| `bun run build` / `npm run build` | Build de producción |
+| `bun run start` / `npm start` | Ejecutar el build de producción |
+| `bun run seed` / `npm run seed` | Seed del tablero **Sample board** (idempotente: sustituye un tablero existente con el mismo nombre) |
 | `bun run lint` / `npm run lint` | ESLint |
 
-## API
+---
 
-| Method | Path | Description |
+## Resumen de la API
+
+Todas las respuestas JSON siguen:
+
+- **Éxito:** `{ "ok": true, "data": … }`
+- **Error:** `{ "ok": false, "error": { "code", "message", "details?" } }`
+
+| Método | Ruta | Descripción |
 | ------ | ---- | ----------- |
-| `GET` | `/api/boards` | List boards |
-| `POST` | `/api/boards` | Create `{ "name" }` |
-| `GET` | `/api/boards/:id` | Board with columns and tasks |
-| `POST` | `/api/columns` | Create column `{ "boardId", "name", "displayOrder" }` |
-| `POST` | `/api/tasks` | Create `{ "columnId", "title", "description?", "priority?" }` |
-| `PATCH` | `/api/tasks/:id` | Partial update: `title`, `description`, `columnId` (same board only), `priority` |
-| `DELETE` | `/api/tasks/:id` | Delete task |
+| `GET` | `/api/boards` | Listar tableros |
+| `POST` | `/api/boards` | Cuerpo: `{ "name" }` |
+| `GET` | `/api/boards/:id` | Tablero con columnas y tareas anidadas |
+| `POST` | `/api/columns` | Cuerpo: `{ "boardId", "name", "displayOrder" }` |
+| `POST` | `/api/tasks` | Cuerpo: `{ "columnId", "title", "description?", "priority?", "taskType?", "assigneeName?" }` |
+| `PATCH` | `/api/tasks/:id` | Actualización parcial: `title`, `description`, `columnId` (solo mismo tablero), `priority`, `taskType`, `assigneeName` |
+| `DELETE` | `/api/tasks/:id` | Eliminar tarea |
 
-Database file: `data/app.db` (gitignored).
+Detalle de implementación: `src/app/api/**`, esquemas en `src/lib/schemas.ts`, helpers en `src/lib/api-response.ts`.
 
-## Architecture
+---
 
-- **`src/lib/db.ts`:** SQLite (`data/app.db`), schema, indexes, `PRAGMA foreign_keys`, WAL. No native addons beyond the runtime’s SQLite binding.
-- **`src/lib/schemas.ts` + `src/lib/api-response.ts`:** Zod validation and uniform JSON errors (400 / 404 / 409, etc.).
-- **`src/app/api/**`:** Route handlers: validate → DB → respond.
-- **`src/app/page.tsx`:** Board list, create board, loading and empty states.
-- **`src/app/boards/[id]/page.tsx`:** Kanban columns, task cards, modal for new tasks, `<select>` to move tasks, delete, add column.
+## Arquitectura y decisiones de diseño
 
-**Trade-offs:** `node:sqlite` is still marked experimental in Node; pinning **≥ 22.5** keeps behavior stable. Column `display_order` is unique per board (simple ordering; production might use fractional indexing or a dedicated reorder API).
+- **`src/lib/db.ts`** — SQLite (`data/app.db`), esquema, índices, claves foráneas (`ON DELETE CASCADE`), WAL. Usa **`node:sqlite`** para no depender de compilación de addons nativos (útil en Windows). Una **migración** pequeña añade columnas en bases ya existentes si el esquema cambió tras el primer arranque.
+- **`src/lib/schemas.ts` + `src/lib/api-response.ts`** — Zod en todas las rutas que mutan y en los ids; formato de error compartido y flatten de Zod para 400.
+- **`src/app/api/**`** — Handlers finos: parsear → validar → consultar → devolver JSON (sin ORM).
+- **`src/app/page.tsx`** — Lista de tableros y crear tablero.
+- **`src/app/boards/[id]/page.tsx`** — Kanban: columnas, tarjetas (`src/components/kanban/`), modal para nuevas tareas, mover con `<select>` y arrastrar y soltar opcional.
 
-## AI assistance
+**Trade-offs:** `node:sqlite` sigue siendo experimental en Node; exigir **≥ 22.5** mantiene el comportamiento predecible. El `display_order` de la columna es único por tablero (simple; en producción podrían usarse índices fraccionarios o un endpoint de reordenación). El orden de tareas dentro de una columna sigue `created_at` (al mover solo se actualiza `column_id`; no hay clave de orden dentro de la columna).
 
-This solution was developed with **Cursor / Copilot-class assistance** for scaffolding, API/UI wiring, and documentation. All code was reviewed and adjusted for consistency with the challenge (endpoints, validation, UI requirements).
+---
 
-## Submission
+## Base de datos
 
-Fork the upstream repository, push your branch, and open a **pull request**. This README documents how to run the project, the architecture, and the seed script, as requested in the brief.
+- **Tipo:** SQLite (un solo archivo).
+- **Ubicación:** `data/app.db` en la raíz del proyecto (ignorado por git).
+- **Inspección:** Cualquier cliente SQLite (por ejemplo [DB Browser for SQLite](https://sqlitebrowser.org/)) o la CLI, con el servidor de desarrollo detenido o en solo lectura si tu herramienta lo permite.
+
+---
+
+## Asistencia con IA
+
+Partes de esta solución se construyeron con **herramientas asistidas por IA** (por ejemplo Cursor / herramientas tipo Copilot) para scaffolding, cableado de API, patrones de UI y documentación. Todo el código fue **revisado y ajustado** para alinearlo con el challenge y poder explicarlo en una revisión.

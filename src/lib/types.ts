@@ -1,7 +1,8 @@
 import type { z } from "zod";
-import type { prioritySchema } from "./schemas";
+import type { prioritySchema, taskTypeSchema } from "./schemas";
 
 export type TaskPriority = z.infer<typeof prioritySchema>;
+export type TaskType = z.infer<typeof taskTypeSchema>;
 
 export type BoardSummary = {
   id: number;
@@ -15,6 +16,8 @@ export type Task = {
   title: string;
   description: string;
   priority: TaskPriority;
+  taskType: TaskType;
+  assigneeName: string;
   createdAt: string;
 };
 

@@ -8,6 +8,8 @@ type TaskRow = {
   title: string;
   description: string;
   priority: string;
+  task_type: string;
+  assignee_name: string;
   created_at: string;
 };
 
@@ -18,6 +20,8 @@ function mapTask(row: TaskRow) {
     title: row.title,
     description: row.description,
     priority: row.priority,
+    taskType: row.task_type,
+    assigneeName: row.assignee_name,
     createdAt: row.created_at,
   };
 }
@@ -37,7 +41,7 @@ export async function PATCH(
   const db = getDb();
   const task = db
     .prepare(
-      `SELECT id, column_id, title, description, priority, created_at FROM tasks WHERE id = ?`,
+      `SELECT id, column_id, title, description, priority, task_type, assignee_name, created_at FROM tasks WHERE id = ?`,
     )
     .get(idParsed.data) as TaskRow | undefined;
   if (!task) return jsonErr("NOT_FOUND", "Task not found", 404);
@@ -71,15 +75,20 @@ export async function PATCH(
       ? parsed.data.description
       : task.description;
   const priority = parsed.data.priority ?? task.priority;
+  const taskType = parsed.data.taskType ?? task.task_type;
+  const assigneeName =
+    parsed.data.assigneeName !== undefined
+      ? parsed.data.assigneeName
+      : task.assignee_name;
   const columnId = nextColumnId;
 
   db.prepare(
-    `UPDATE tasks SET title = ?, description = ?, column_id = ?, priority = ? WHERE id = ?`,
-  ).run(title, description, columnId, priority, idParsed.data);
+    `UPDATE tasks SET title = ?, description = ?, column_id = ?, priority = ?, task_type = ?, assignee_name = ? WHERE id = ?`,
+  ).run(title, description, columnId, priority, taskType, assigneeName, idParsed.data);
 
   const updated = db
     .prepare(
-      `SELECT id, column_id, title, description, priority, created_at FROM tasks WHERE id = ?`,
+      `SELECT id, column_id, title, description, priority, task_type, assignee_name, created_at FROM tasks WHERE id = ?`,
     )
     .get(idParsed.data) as TaskRow;
 

@@ -8,6 +8,8 @@ type TaskRow = {
   title: string;
   description: string;
   priority: string;
+  task_type: string;
+  assignee_name: string;
   created_at: string;
 };
 
@@ -24,17 +26,19 @@ export async function POST(request: Request) {
 
   const info = db
     .prepare(
-      `INSERT INTO tasks (column_id, title, description, priority) VALUES (?, ?, ?, ?)`,
+      `INSERT INTO tasks (column_id, title, description, priority, task_type, assignee_name) VALUES (?, ?, ?, ?, ?, ?)`,
     )
     .run(
       parsed.data.columnId,
       parsed.data.title,
       parsed.data.description ?? "",
       parsed.data.priority,
+      parsed.data.taskType,
+      parsed.data.assigneeName ?? "",
     );
   const row = db
     .prepare(
-      `SELECT id, column_id, title, description, priority, created_at FROM tasks WHERE id = ?`,
+      `SELECT id, column_id, title, description, priority, task_type, assignee_name, created_at FROM tasks WHERE id = ?`,
     )
     .get(asNumber(info.lastInsertRowid)) as TaskRow;
 
@@ -45,6 +49,8 @@ export async function POST(request: Request) {
       title: row.title,
       description: row.description,
       priority: row.priority,
+      taskType: row.task_type,
+      assigneeName: row.assignee_name,
       createdAt: row.created_at,
     },
     201,

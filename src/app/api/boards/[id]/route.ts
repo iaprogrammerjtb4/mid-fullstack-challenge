@@ -15,6 +15,8 @@ type TaskRow = {
   title: string;
   description: string;
   priority: string;
+  task_type: string;
+  assignee_name: string;
   created_at: string;
 };
 
@@ -45,7 +47,7 @@ export async function GET(
     columns: columns.map((col) => {
       const tasks = db
         .prepare(
-          `SELECT id, column_id, title, description, priority, created_at FROM tasks WHERE column_id = ? ORDER BY datetime(created_at) ASC, id ASC`,
+          `SELECT id, column_id, title, description, priority, task_type, assignee_name, created_at FROM tasks WHERE column_id = ? ORDER BY datetime(created_at) ASC, id ASC`,
         )
         .all(col.id) as TaskRow[];
       return {
@@ -59,6 +61,8 @@ export async function GET(
           title: t.title,
           description: t.description,
           priority: t.priority,
+          taskType: t.task_type,
+          assigneeName: t.assignee_name,
           createdAt: t.created_at,
         })),
       };
