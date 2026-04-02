@@ -2,12 +2,43 @@
  * Preloads one board with columns and tasks. From project root:
  *   bun run seed
  *   npm run seed
+ *
+ * Also upserts demo users (bcrypt):
+ *   pm@example.com / password123  — role PM
+ *   dev@example.com / password123 — role DEVELOPER
  */
 
+import bcrypt from "bcryptjs";
 import { getDb } from "../src/lib/db";
+
+function upsertUser(
+  db: ReturnType<typeof getDb>,
+  email: string,
+  plainPassword: string,
+  role: "PM" | "DEVELOPER",
+) {
+  const hash = bcrypt.hashSync(plainPassword, 10);
+  const existing = db
+    .prepare(`SELECT id FROM users WHERE email = ?`)
+    .get(email) as { id: number } | undefined;
+  if (existing) {
+    db.prepare(
+      `UPDATE users SET password_hash = ?, role = ? WHERE email = ?`,
+    ).run(hash, role, email);
+  } else {
+    db.prepare(
+      `INSERT INTO users (email, password_hash, role) VALUES (?, ?, ?)`,
+    ).run(email, hash, role);
+  }
+}
 
 function main() {
   const db = getDb();
+
+  upsertUser(db, "pm@example.com", "password123", "PM");
+  upsertUser(db, "dev@example.com", "password123", "DEVELOPER");
+  console.log("Users: pm@example.com & dev@example.com — password: password123");
+
 
   const existing = db
     .prepare(`SELECT id FROM boards WHERE name = ?`)
