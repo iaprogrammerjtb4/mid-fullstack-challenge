@@ -39,15 +39,29 @@ Opcionales (si usas esas funciones):
 
 Tras guardar variables, vuelve a desplegar (**Redeploy**) para que el build las inyecte.
 
+### Si al iniciar sesión ves `error=Configuration` o “correo incorrecto” pero la red devuelve `/api/auth/error?error=Configuration`
+
+Eso casi siempre es **falta de `AUTH_SECRET` en runtime** (no solo en build). Comprueba en Vercel:
+
+1. **`AUTH_SECRET`** definida para **Production** y un **Redeploy** después de guardarla.
+2. **`AUTH_URL`** = la URL exacta del sitio, p. ej. `https://tu-proyecto.vercel.app` (sin `/` final).
+
+Generar secreto en Windows (sin OpenSSL):  
+`node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
+
 ---
 
 ## 3. Limitación importante: SQLite en archivo
 
-La app usa **SQLite** en `data/app.db` en disco local.
+La app usa **SQLite** en `data/app.db` en local.
 
-En **Vercel** las funciones son **serverless**: no hay un disco persistente compartido entre invocaciones; el sistema de archivos de despliegue es **de solo lectura** salvo `/tmp` (y no sirve como base de datos duradera).
+En **Vercel** (`VERCEL=1`) el código usa **`/tmp/.../app.db`** para poder crear la base (el directorio del proyecto es de solo lectura). Los datos **no son persistentes** entre instancias ni como en un VPS: cada contenedor puede tener su propio `/tmp` vacío.
 
-**Conclusión:** el código actual **no puede usar el mismo SQLite de escritorio** en producción en Vercel de forma fiable. Tienes dos caminos:
+Para poder **probar el login** sin ejecutar `seed` en la nube, si la tabla `users` está vacía se insertan automáticamente **`pm@example.com`** y **`dev@example.com`** con contraseña **`password123`** (solo en Vercel). Para desactivarlo: **`VERCEL_SKIP_DEMO_USERS=1`**.
+
+Los **tableros** no se rellenan solos en Vercel; para una demo completa hace falta base remota compartida o otro host (ver abajo).
+
+**Conclusión:** para **producción seria** en Vercel sigue siendo recomendable una **base remota** (Turso, Postgres, etc.). Tienes dos caminos amplios:
 
 ### Opción A — Mantener SQLite sin reescribir la app (recomendada a corto plazo)
 
