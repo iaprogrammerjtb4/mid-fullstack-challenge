@@ -12,5 +12,5 @@ export async function GET() {
     return jsonErr("FORBIDDEN", "PM role required", 403);
   }
 
-  return jsonOk(getAdminAnalytics());
+  return jsonOk(await getAdminAnalytics());
 }

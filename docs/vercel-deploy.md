@@ -36,6 +36,10 @@ Opcionales (si usas esas funciones):
 | `NEXT_PUBLIC_LIVEKIT_URL` | WebSocket de LiveKit, ej. `wss://xxx.livekit.cloud` |
 | `LIVEKIT_API_KEY` | Clave API LiveKit (servidor) |
 | `LIVEKIT_API_SECRET` | Secreto LiveKit (servidor) |
+| `TURSO_DATABASE_URL` | URL de la base **libSQL** (Turso), ej. `libsql://tu-db.turso.io` — **recomendado en Vercel** para datos persistentes compartidos |
+| `TURSO_AUTH_TOKEN` | Token de autenticación de Turso (junto con la URL anterior activa el modo remoto) |
+| `TURSO_SEED_DEMO` | Opcional. Si vale `1` y la tabla `users` está vacía, inserta `pm@example.com` y `dev@example.com` (`password123`) |
+| `TURSO_SKIP_DEMO_USERS` | Si vale `1`, no se insertan usuarios demo en Turso (aunque `TURSO_SEED_DEMO=1`) |
 
 Tras guardar variables, vuelve a desplegar (**Redeploy**) para que el build las inyecte.
 
@@ -51,37 +55,28 @@ Generar secreto en Windows (sin OpenSSL):
 
 ---
 
-## 3. Limitación importante: SQLite en archivo
+## 3. Base de datos: Turso en Vercel (recomendado)
 
-La app usa **SQLite** en `data/app.db` en local.
+En **local**, la app usa un archivo **`data/app.db`** (`node:sqlite`).
 
-En **Vercel** (`VERCEL=1`) el código usa **`/tmp/.../app.db`** para poder crear la base (el directorio del proyecto es de solo lectura). Los datos **no son persistentes** entre instancias ni como en un VPS: cada contenedor puede tener su propio `/tmp` vacío.
+En **Vercel**, para que **tableros, tareas y usuarios** sean **los mismos en todas las instancias** serverless, configura **[Turso](https://turso.tech)** (SQLite hospedado, protocolo libSQL):
 
-Para poder **probar el login** sin ejecutar `seed` en la nube, si la tabla `users` está vacía se insertan automáticamente **`pm@example.com`** y **`dev@example.com`** con contraseña **`password123`** (solo en Vercel). Para desactivarlo: **`VERCEL_SKIP_DEMO_USERS=1`**.
+1. Crea una base en el panel de Turso y obtén **URL** + **token**.
+2. En Vercel añade **`TURSO_DATABASE_URL`** y **`TURSO_AUTH_TOKEN`** (Production; incluye **Build** si tu proyecto separa entornos en el paso de build).
+3. Redeploy. Al arrancar, `src/lib/db.ts` ejecuta el DDL/migraciones necesarias sobre Turso.
 
-Los **tableros** no se rellenan solos en Vercel; para una demo completa hace falta base remota compartida o otro host (ver abajo).
+**Usuarios y seed:**
 
-**Conclusión:** para **producción seria** en Vercel sigue siendo recomendable una **base remota** (Turso, Postgres, etc.). Tienes dos caminos amplios:
+- Con Turso, los usuarios demo **no** se crean solo por estar en Vercel. Si quieres las mismas cuentas que en local sin ejecutar seed, define **`TURSO_SEED_DEMO=1`** (solo si la tabla `users` está vacía). Para producción real, crea usuarios propios o importa datos y usa **`TURSO_SKIP_DEMO_USERS=1`**.
+- Para cargar el tablero de ejemplo, ejecuta **`npm run seed`** con **`TURSO_DATABASE_URL`** y **`TURSO_AUTH_TOKEN`** en el entorno (p. ej. `.env.local`); el script detecta Turso y escribe en la nube. Sin esas variables, el seed usa solo el archivo local `data/app.db`.
 
-### Opción A — Mantener SQLite sin reescribir la app (recomendada a corto plazo)
+### Sin Turso (solo `/tmp` en Vercel)
 
-Despliega el **mismo proyecto** en un servicio con **disco persistente** o contenedor de larga duración, por ejemplo:
+Si **no** defines URL + token, la app sigue usando SQLite bajo **`/tmp`** (véase `src/lib/sqlite-local.ts`). Eso **no** es persistente entre instancias. En ese modo, si `users` está vacío, se pueden insertar **`pm@example.com`** / **`dev@example.com`** (`password123`) salvo **`VERCEL_SKIP_DEMO_USERS=1`**.
 
-- [Railway](https://railway.app) (Web Service + volumen, o sin volumen ejecutando seed en cada deploy según tu estrategia)
-- [Render](https://render.com) (Web Service)
-- [Fly.io](https://fly.io) (máquina + volumen)
-- Un **VPS** con Node 22 + `npm run build` + `npm start`
+### Otros hosts (Railway, VPS, etc.)
 
-Ahí `data/app.db` puede persistir y `npm run seed` se ejecuta una vez (o en el pipeline) como en local.
-
-### Opción B — Seguir en Vercel
-
-Necesitas **migrar la capa de datos** a algo remoto compatible con serverless, por ejemplo:
-
-- [Turso](https://turso.tech) (SQLite remoto + `@libsql/client`) — requiere adaptar `src/lib/db.ts` y las llamadas (API **asíncrona**).
-- [Neon](https://neon.tech) / [Vercel Postgres](https://vercel.com/storage/postgres) / Supabase — requiere SQL distinto o ORM y migraciones.
-
-Eso es un cambio de arquitectura; hasta hacerlo, **no esperes datos persistentes** en Vercel con el `db.ts` actual.
+Si despliegas en un servicio con **disco persistente**, puedes seguir usando el archivo `data/app.db` y `npm run seed` como en local, sin Turso.
 
 ---
 
@@ -107,7 +102,7 @@ LiveKit ya es un servicio en la nube. Configura las variables de la tabla anteri
 ## 6. Tras el primer deploy
 
 1. Comprueba que `AUTH_URL` coincide exactamente con la URL de producción (incluido `https` y sin `/` final incorrecta).
-2. Si usas base **remota** o **disco persistente**, ejecuta **`npm run seed`** (o tu script SQL) **contra esa base** para crear usuarios demo (`pm@example.com` / `dev@example.com`, etc.).
+2. Con **Turso**, asegúrate de tener al menos un usuario (registro propio, `TURSO_SEED_DEMO=1`, o **`npm run seed`** con las variables Turso en el entorno).
 3. Abre `https://tu-app.vercel.app` (o tu dominio) y prueba login.
 
 ---
@@ -123,8 +118,6 @@ En la raíz del repo hay un `vercel.json` mínimo con `"framework": "nextjs"`. P
 | Componente | ¿Funciona en Vercel “tal cual”? |
 | ---------- | -------------------------------- |
 | Next.js (UI + API routes) | Sí, tras configurar `AUTH_*`. |
-| SQLite en `data/app.db` | **No** de forma persistente; migrar DB o desplegar en otro host. |
+| Datos persistentes compartidos | Sí, con **`TURSO_DATABASE_URL`** + **`TURSO_AUTH_TOKEN`**. Sin ellos, SQLite en `/tmp` no es fiable para producción. |
 | Socket.io (`bun run socket`) | **No** en el mismo proyecto; servicio externo + `NEXT_PUBLIC_CHAT_SOCKET_URL`. |
 | LiveKit | Sí, con variables de entorno. |
-
-Si quieres **solo Vercel** sin otro proveedor, el siguiente paso técnico es **sustituir `src/lib/db.ts`** por un cliente remoto (Turso o Postgres) y volver a ejecutar migraciones/seed contra esa base.

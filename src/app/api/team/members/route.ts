@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { jsonErr, jsonOk } from "@/lib/api-response";
-import { getDb } from "@/lib/db";
+import { sqlAll } from "@/lib/db";
 import { isUserOnline, loadPresenceLastSeenMap } from "@/lib/presence";
 import { isPmOrDeveloper } from "@/lib/roles";
 
@@ -12,12 +12,11 @@ export async function GET() {
     return jsonErr("FORBIDDEN", "Not allowed", 403);
   }
 
-  const db = getDb();
-  const rows = db
-    .prepare(`SELECT id, email, role FROM users ORDER BY id ASC`)
-    .all() as Row[];
+  const rows = await sqlAll<Row>(
+    `SELECT id, email, role FROM users ORDER BY id ASC`,
+  );
 
-  const presence = loadPresenceLastSeenMap(db);
+  const presence = await loadPresenceLastSeenMap();
   const now = Date.now();
 
   return jsonOk(

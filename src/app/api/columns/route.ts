@@ -5,7 +5,7 @@ import {
   jsonZodError,
   readJsonBody,
 } from "@/lib/api-response";
-import { asNumber, getDb } from "@/lib/db";
+import { asNumber, sqlGet, sqlRun } from "@/lib/db";
 import { getApiUser } from "@/lib/require-api-user";
 import { UserRole } from "@/lib/roles";
 
@@ -27,17 +27,16 @@ export async function POST(request: Request) {
   const parsed = createColumnSchema.safeParse(raw);
   if (!parsed.success) return jsonZodError(parsed.error);
 
-  const db = getDb();
-  const board = db
-    .prepare(`SELECT id FROM boards WHERE id = ?`)
-    .get(parsed.data.boardId);
+  const board = await sqlGet<{ id: number }>(
+    `SELECT id FROM boards WHERE id = ?`,
+    [parsed.data.boardId],
+  );
   if (!board) return jsonErr("NOT_FOUND", "Board not found", 404);
 
-  const existingOrder = db
-    .prepare(
-      `SELECT id FROM columns WHERE board_id = ? AND display_order = ?`,
-    )
-    .get(parsed.data.boardId, parsed.data.displayOrder);
+  const existingOrder = await sqlGet<{ id: number }>(
+    `SELECT id FROM columns WHERE board_id = ? AND display_order = ?`,
+    [parsed.data.boardId, parsed.data.displayOrder],
+  );
   if (existingOrder) {
     return jsonErr(
       "CONFLICT",
@@ -47,22 +46,26 @@ export async function POST(request: Request) {
   }
 
   try {
-    const info = db
-      .prepare(
-        `INSERT INTO columns (board_id, name, display_order) VALUES (?, ?, ?)`,
-      )
-      .run(parsed.data.boardId, parsed.data.name, parsed.data.displayOrder);
-    const row = db
-      .prepare(
-        `SELECT id, board_id, name, display_order FROM columns WHERE id = ?`,
-      )
-      .get(asNumber(info.lastInsertRowid)) as ColumnRow;
-    return jsonOk({
-      id: row.id,
-      boardId: row.board_id,
-      name: row.name,
-      displayOrder: row.display_order,
-    }, 201);
+    const info = await sqlRun(
+      `INSERT INTO columns (board_id, name, display_order) VALUES (?, ?, ?)`,
+      [parsed.data.boardId, parsed.data.name, parsed.data.displayOrder],
+    );
+    const row = await sqlGet<ColumnRow>(
+      `SELECT id, board_id, name, display_order FROM columns WHERE id = ?`,
+      [asNumber(info.lastInsertRowid)],
+    );
+    if (!row) {
+      return jsonErr("INTERNAL", "Failed to load created column", 500);
+    }
+    return jsonOk(
+      {
+        id: row.id,
+        boardId: row.board_id,
+        name: row.name,
+        displayOrder: row.display_order,
+      },
+      201,
+    );
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     if (msg.includes("UNIQUE")) {

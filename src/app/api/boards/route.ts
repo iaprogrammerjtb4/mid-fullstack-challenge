@@ -1,6 +1,6 @@
 import { createBoardSchema } from "@/lib/schemas";
 import { jsonErr, jsonOk, jsonZodError, readJsonBody } from "@/lib/api-response";
-import { asNumber, getDb } from "@/lib/db";
+import { asNumber, sqlAll, sqlGet, sqlRun } from "@/lib/db";
 import { getApiUser } from "@/lib/require-api-user";
 import { UserRole } from "@/lib/roles";
 
@@ -14,12 +14,9 @@ export async function GET() {
   const authResult = await getApiUser();
   if (authResult.error) return authResult.error;
 
-  const db = getDb();
-  const rows = db
-    .prepare(
-      `SELECT id, name, created_at FROM boards ORDER BY datetime(created_at) DESC`,
-    )
-    .all() as BoardRow[];
+  const rows = await sqlAll<BoardRow>(
+    `SELECT id, name, created_at FROM boards ORDER BY datetime(created_at) DESC`,
+  );
   return jsonOk(rows.map(mapBoard));
 }
 
@@ -34,12 +31,15 @@ export async function POST(request: Request) {
   const parsed = createBoardSchema.safeParse(raw);
   if (!parsed.success) return jsonZodError(parsed.error);
 
-  const db = getDb();
-  const info = db.prepare(`INSERT INTO boards (name) VALUES (?)`).run(
+  const info = await sqlRun(`INSERT INTO boards (name) VALUES (?)`, [
     parsed.data.name,
+  ]);
+  const row = await sqlGet<BoardRow>(
+    `SELECT id, name, created_at FROM boards WHERE id = ?`,
+    [asNumber(info.lastInsertRowid)],
   );
-  const row = db
-    .prepare(`SELECT id, name, created_at FROM boards WHERE id = ?`)
-    .get(asNumber(info.lastInsertRowid)) as BoardRow;
+  if (!row) {
+    return jsonErr("INTERNAL", "Failed to load created board", 500);
+  }
   return jsonOk(mapBoard(row), 201);
 }

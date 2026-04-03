@@ -1,6 +1,6 @@
 import { idParamSchema, patchTaskSchema } from "@/lib/schemas";
 import { jsonErr, jsonOk, jsonZodError, readJsonBody } from "@/lib/api-response";
-import { asNumber, getDb } from "@/lib/db";
+import { asNumber, sqlGet, sqlRun } from "@/lib/db";
 import { getApiUser } from "@/lib/require-api-user";
 import { UserRole } from "@/lib/roles";
 
@@ -60,26 +60,22 @@ export async function PATCH(
     );
   }
 
-  const db = getDb();
-  const task = db
-    .prepare(
-      `SELECT id, column_id, title, description, priority, task_type, assignee_name, created_at FROM tasks WHERE id = ?`,
-    )
-    .get(idParsed.data) as TaskRow | undefined;
+  const task = await sqlGet<TaskRow>(
+    `SELECT id, column_id, title, description, priority, task_type, assignee_name, created_at FROM tasks WHERE id = ?`,
+    [idParsed.data],
+  );
   if (!task) return jsonErr("NOT_FOUND", "Task not found", 404);
 
   let nextColumnId = task.column_id;
   if (parsed.data.columnId !== undefined) {
-    const currentBoard = db
-      .prepare(
-        `SELECT c.board_id FROM columns c WHERE c.id = ?`,
-      )
-      .get(task.column_id) as { board_id: number } | undefined;
-    const newCol = db
-      .prepare(`SELECT id, board_id FROM columns WHERE id = ?`)
-      .get(parsed.data.columnId) as
-      | { id: number; board_id: number }
-      | undefined;
+    const currentBoard = await sqlGet<{ board_id: number }>(
+      `SELECT c.board_id FROM columns c WHERE c.id = ?`,
+      [task.column_id],
+    );
+    const newCol = await sqlGet<{ id: number; board_id: number }>(
+      `SELECT id, board_id FROM columns WHERE id = ?`,
+      [parsed.data.columnId],
+    );
     if (!newCol) return jsonErr("NOT_FOUND", "Target column not found", 404);
     if (!currentBoard || newCol.board_id !== currentBoard.board_id) {
       return jsonErr(
@@ -104,15 +100,18 @@ export async function PATCH(
       : task.assignee_name;
   const columnId = nextColumnId;
 
-  db.prepare(
+  await sqlRun(
     `UPDATE tasks SET title = ?, description = ?, column_id = ?, priority = ?, task_type = ?, assignee_name = ? WHERE id = ?`,
-  ).run(title, description, columnId, priority, taskType, assigneeName, idParsed.data);
+    [title, description, columnId, priority, taskType, assigneeName, idParsed.data],
+  );
 
-  const updated = db
-    .prepare(
-      `SELECT id, column_id, title, description, priority, task_type, assignee_name, created_at FROM tasks WHERE id = ?`,
-    )
-    .get(idParsed.data) as TaskRow;
+  const updated = await sqlGet<TaskRow>(
+    `SELECT id, column_id, title, description, priority, task_type, assignee_name, created_at FROM tasks WHERE id = ?`,
+    [idParsed.data],
+  );
+  if (!updated) {
+    return jsonErr("NOT_FOUND", "Task not found after update", 404);
+  }
 
   return jsonOk(mapTask(updated));
 }
@@ -131,8 +130,7 @@ export async function DELETE(
   const idParsed = idParamSchema.safeParse(idStr);
   if (!idParsed.success) return jsonZodError(idParsed.error);
 
-  const db = getDb();
-  const info = db.prepare(`DELETE FROM tasks WHERE id = ?`).run(idParsed.data);
+  const info = await sqlRun(`DELETE FROM tasks WHERE id = ?`, [idParsed.data]);
   if (asNumber(info.changes) === 0)
     return jsonErr("NOT_FOUND", "Task not found", 404);
 

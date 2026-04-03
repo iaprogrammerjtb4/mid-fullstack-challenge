@@ -3,7 +3,7 @@ import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { getAuthSecret } from "@/lib/auth-secret";
-import { getDb } from "@/lib/db";
+import { sqlGet } from "@/lib/db";
 import { UserRole } from "@/lib/roles";
 import type { UserRoleType } from "@/lib/roles";
 
@@ -34,12 +34,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const parsed = credentialsSchema.safeParse(credentials);
         if (!parsed.success) return null;
 
-        const db = getDb();
-        const row = db
-          .prepare(
-            `SELECT id, email, password_hash, role, image FROM users WHERE email = ?`,
-          )
-          .get(parsed.data.email.toLowerCase()) as UserRow | undefined;
+        const row = await sqlGet<UserRow>(
+          `SELECT id, email, password_hash, role, image FROM users WHERE email = ?`,
+          [parsed.data.email.toLowerCase()],
+        );
         if (!row) return null;
 
         const ok = bcrypt.compareSync(parsed.data.password, row.password_hash);

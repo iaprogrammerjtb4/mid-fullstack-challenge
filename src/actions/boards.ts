@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
-import { asNumber, getDb } from "@/lib/db";
+import { asNumber, sqlGet, sqlRun } from "@/lib/db";
 import { isPm } from "@/lib/roles";
 import { createBoardSchema, createColumnSchema } from "@/lib/schemas";
 
@@ -27,10 +27,9 @@ export async function createBoardAction(
     };
   }
 
-  const db = getDb();
-  const info = db.prepare(`INSERT INTO boards (name) VALUES (?)`).run(
+  const info = await sqlRun(`INSERT INTO boards (name) VALUES (?)`, [
     parsed.data.name,
-  );
+  ]);
   const id = asNumber(info.lastInsertRowid);
 
   revalidatePath("/");
@@ -54,19 +53,18 @@ export async function createColumnAction(
     };
   }
 
-  const db = getDb();
-  const board = db
-    .prepare(`SELECT id FROM boards WHERE id = ?`)
-    .get(parsed.data.boardId);
+  const board = await sqlGet<{ id: number }>(
+    `SELECT id FROM boards WHERE id = ?`,
+    [parsed.data.boardId],
+  );
   if (!board) {
     return { ok: false, code: "NOT_FOUND", message: "Board not found" };
   }
 
-  const existingOrder = db
-    .prepare(
-      `SELECT id FROM columns WHERE board_id = ? AND display_order = ?`,
-    )
-    .get(parsed.data.boardId, parsed.data.displayOrder);
+  const existingOrder = await sqlGet<{ id: number }>(
+    `SELECT id FROM columns WHERE board_id = ? AND display_order = ?`,
+    [parsed.data.boardId, parsed.data.displayOrder],
+  );
   if (existingOrder) {
     return {
       ok: false,
@@ -76,11 +74,10 @@ export async function createColumnAction(
   }
 
   try {
-    const info = db
-      .prepare(
-        `INSERT INTO columns (board_id, name, display_order) VALUES (?, ?, ?)`,
-      )
-      .run(parsed.data.boardId, parsed.data.name, parsed.data.displayOrder);
+    const info = await sqlRun(
+      `INSERT INTO columns (board_id, name, display_order) VALUES (?, ?, ?)`,
+      [parsed.data.boardId, parsed.data.name, parsed.data.displayOrder],
+    );
     const id = asNumber(info.lastInsertRowid);
     revalidatePath(`/boards/${parsed.data.boardId}`);
     return { ok: true, data: { id, boardId: parsed.data.boardId } };

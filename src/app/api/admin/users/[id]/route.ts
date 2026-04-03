@@ -5,15 +5,15 @@ import {
   idParamSchema,
 } from "@/lib/schemas";
 import { jsonErr, jsonOk, jsonZodError, readJsonBody } from "@/lib/api-response";
-import { asNumber, getDb } from "@/lib/db";
+import { asNumber, sqlGet, sqlRun } from "@/lib/db";
 import { isUserOnline, loadPresenceLastSeenMap } from "@/lib/presence";
 import { unlinkProfileImage } from "@/lib/user-avatar";
 
-function countProductManagers(db: ReturnType<typeof getDb>): number {
-  const row = db
-    .prepare(`SELECT COUNT(*) AS n FROM users WHERE role = 'PM'`)
-    .get() as { n: number | bigint };
-  return asNumber(row.n);
+async function countProductManagers(): Promise<number> {
+  const row = await sqlGet<{ n: number | bigint }>(
+    `SELECT COUNT(*) AS n FROM users WHERE role = 'PM'`,
+  );
+  return row ? asNumber(row.n) : 0;
 }
 
 export async function PATCH(
@@ -32,12 +32,12 @@ export async function PATCH(
   const parsed = adminPatchUserSchema.safeParse(raw);
   if (!parsed.success) return jsonZodError(parsed.error);
 
-  const db = getDb();
-  const target = db
-    .prepare(`SELECT id, email, role, image FROM users WHERE id = ?`)
-    .get(userId) as
-    | { id: number; email: string; role: string; image: string }
-    | undefined;
+  const target = await sqlGet<{
+    id: number;
+    email: string;
+    role: string;
+    image: string;
+  }>(`SELECT id, email, role, image FROM users WHERE id = ?`, [userId]);
 
   if (!target) {
     return jsonErr("NOT_FOUND", "User not found", 404);
@@ -46,7 +46,7 @@ export async function PATCH(
   if (
     parsed.data.role === "DEVELOPER" &&
     target.role === "PM" &&
-    countProductManagers(db) <= 1
+    (await countProductManagers()) <= 1
   ) {
     return jsonErr(
       "LAST_PM",
@@ -58,52 +58,56 @@ export async function PATCH(
   if (parsed.data.email !== undefined) {
     const normalized = parsed.data.email.trim().toLowerCase();
     if (normalized !== target.email.toLowerCase()) {
-      const taken = db
-        .prepare(`SELECT id FROM users WHERE lower(email) = ? AND id != ?`)
-        .get(normalized, userId) as { id: number } | undefined;
+      const taken = await sqlGet<{ id: number }>(
+        `SELECT id FROM users WHERE lower(email) = ? AND id != ?`,
+        [normalized, userId],
+      );
       if (taken) {
         return jsonErr("EMAIL_TAKEN", "That email is already in use", 409);
       }
-      db.prepare(`UPDATE users SET email = ? WHERE id = ?`).run(
+      await sqlRun(`UPDATE users SET email = ? WHERE id = ?`, [
         normalized,
         userId,
-      );
+      ]);
     }
   }
 
   if (parsed.data.role !== undefined) {
-    db.prepare(`UPDATE users SET role = ? WHERE id = ?`).run(
+    await sqlRun(`UPDATE users SET role = ? WHERE id = ?`, [
       parsed.data.role,
       userId,
-    );
+    ]);
   }
 
   if (parsed.data.newPassword !== undefined) {
     const hash = bcrypt.hashSync(parsed.data.newPassword, 10);
-    db.prepare(`UPDATE users SET password_hash = ? WHERE id = ?`).run(
+    await sqlRun(`UPDATE users SET password_hash = ? WHERE id = ?`, [
       hash,
       userId,
-    );
+    ]);
   }
 
   if (parsed.data.clearImage === true) {
     if (target.image) {
       unlinkProfileImage(target.image);
     }
-    db.prepare(`UPDATE users SET image = ? WHERE id = ?`).run("", userId);
+    await sqlRun(`UPDATE users SET image = ? WHERE id = ?`, ["", userId]);
   }
 
-  const row = db
-    .prepare(`SELECT id, email, role, image, created_at FROM users WHERE id = ?`)
-    .get(userId) as {
-      id: number;
-      email: string;
-      role: string;
-      image: string;
-      created_at: string;
-    };
+  const row = await sqlGet<{
+    id: number;
+    email: string;
+    role: string;
+    image: string;
+    created_at: string;
+  }>(`SELECT id, email, role, image, created_at FROM users WHERE id = ?`, [
+    userId,
+  ]);
+  if (!row) {
+    return jsonErr("NOT_FOUND", "User not found after update", 404);
+  }
 
-  const presence = loadPresenceLastSeenMap(db);
+  const presence = await loadPresenceLastSeenMap();
   const now = Date.now();
 
   return jsonOk({

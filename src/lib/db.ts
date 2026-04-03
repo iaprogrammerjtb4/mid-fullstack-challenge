@@ -1,133 +1,81 @@
 import bcrypt from "bcryptjs";
-import fs from "fs";
-import os from "os";
-import path from "path";
-import { DatabaseSync } from "node:sqlite";
+import { createClient, type Client, type InValue, type ResultSet } from "@libsql/client";
+import type { SQLInputValue } from "node:sqlite";
+import { getLocalDb, SQLITE_BOOTSTRAP_SQL } from "@/lib/sqlite-local";
 
-/**
- * Vercel serverless has a read-only project root; only e.g. /tmp is writable.
- * Use a temp dir so SQLite can create app.db + WAL files. Data is ephemeral per
- * instance (see docs/vercel-deploy.md); demo users are ensured on empty DB.
- */
-const DATA_DIR =
-  process.env.VERCEL === "1"
-    ? path.join(os.tmpdir(), "mid-fullstack-data")
-    : path.join(process.cwd(), "data");
-const DB_PATH = path.join(DATA_DIR, "app.db");
+/** node:sqlite bind params exclude boolean; libsql allows it — coerce for local DB. */
+function toLocalArgs(args: InValue[]): SQLInputValue[] {
+  return args.map((v) => {
+    if (typeof v === "boolean") return v ? 1 : 0;
+    return v as SQLInputValue;
+  });
+}
 
-const DDL = `
-PRAGMA foreign_keys = ON;
+export function isTursoConfigured(): boolean {
+  return Boolean(
+    process.env.TURSO_DATABASE_URL?.trim() &&
+      process.env.TURSO_AUTH_TOKEN?.trim(),
+  );
+}
 
-CREATE TABLE IF NOT EXISTS boards (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE INDEX IF NOT EXISTS idx_boards_created_at ON boards(created_at);
+let tursoClient: Client | null = null;
+let tursoReady: Promise<void> | null = null;
 
-CREATE TABLE IF NOT EXISTS columns (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,
-  display_order INTEGER NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_columns_board_id ON columns(board_id);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_columns_board_display_order ON columns(board_id, display_order);
-
-CREATE TABLE IF NOT EXISTS tasks (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  column_id INTEGER NOT NULL REFERENCES columns(id) ON DELETE CASCADE,
-  title TEXT NOT NULL,
-  description TEXT NOT NULL DEFAULT '',
-  priority TEXT NOT NULL DEFAULT 'medium',
-  task_type TEXT NOT NULL DEFAULT 'task',
-  assignee_name TEXT NOT NULL DEFAULT '',
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE INDEX IF NOT EXISTS idx_tasks_column_id ON tasks(column_id);
-CREATE INDEX IF NOT EXISTS idx_tasks_created_at ON tasks(created_at);
-
-CREATE TABLE IF NOT EXISTS users (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  email TEXT NOT NULL UNIQUE,
-  password_hash TEXT NOT NULL,
-  role TEXT NOT NULL CHECK (role IN ('PM', 'DEVELOPER')),
-  image TEXT NOT NULL DEFAULT '',
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-
-CREATE TABLE IF NOT EXISTS task_comments (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-  author_email TEXT NOT NULL,
-  body TEXT NOT NULL,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE INDEX IF NOT EXISTS idx_task_comments_task_id ON task_comments(task_id);
-CREATE INDEX IF NOT EXISTS idx_task_comments_created_at ON task_comments(created_at);
-`;
-
-let db: DatabaseSync | null = null;
-
-export function getDb(): DatabaseSync {
-  if (db) return db;
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+function getTurso(): Client {
+  if (!tursoClient) {
+    tursoClient = createClient({
+      url: process.env.TURSO_DATABASE_URL!.trim(),
+      authToken: process.env.TURSO_AUTH_TOKEN!.trim(),
+    });
   }
-  db = new DatabaseSync(DB_PATH);
-  db.exec("PRAGMA foreign_keys = ON;");
-  db.exec("PRAGMA journal_mode = WAL;");
-  db.exec(DDL);
-  migrateTasksTable(db);
-  migrateUsersAndComments(db);
-  migrateUsersImage(db);
-  migrateCoworkRooms(db);
-  migrateUserPresence(db);
-  ensureVercelDemoUsers(db);
-  return db;
+  return tursoClient;
 }
 
-/** PM + Developer demo logins when DB is empty (Vercel /tmp starts fresh per instance). */
-function ensureVercelDemoUsers(db: DatabaseSync) {
-  if (process.env.VERCEL !== "1") return;
-  if (process.env.VERCEL_SKIP_DEMO_USERS === "1") return;
-  const row = db.prepare(`SELECT COUNT(*) AS c FROM users`).get() as
-    | { c: number }
-    | undefined;
-  if (!row || row.c > 0) return;
-  const hash = bcrypt.hashSync("password123", 10);
-  db.prepare(
-    `INSERT OR IGNORE INTO users (email, password_hash, role) VALUES (?, ?, ?)`,
-  ).run("pm@example.com", hash, "PM");
-  db.prepare(
-    `INSERT OR IGNORE INTO users (email, password_hash, role) VALUES (?, ?, ?)`,
-  ).run("dev@example.com", hash, "DEVELOPER");
+function mapRow<T extends Record<string, unknown>>(
+  rs: ResultSet,
+  index: number,
+): T | undefined {
+  const row = rs.rows[index];
+  if (!row) return undefined;
+  const out: Record<string, unknown> = {};
+  for (let i = 0; i < rs.columns.length; i++) {
+    const key = rs.columns[i];
+    let v: unknown = row[i];
+    if (typeof v === "bigint") v = Number(v);
+    out[key] = v;
+  }
+  return out as T;
 }
 
-type TableInfoRow = { name: string };
+async function tursoTableExists(c: Client, name: string): Promise<boolean> {
+  const rs = await c.execute({
+    sql: `SELECT 1 AS x FROM sqlite_master WHERE type='table' AND name = ?`,
+    args: [name],
+  });
+  return rs.rows.length > 0;
+}
 
-function migrateTasksTable(db: DatabaseSync) {
-  const cols = db.prepare(`PRAGMA table_info(tasks)`).all() as TableInfoRow[];
-  const names = new Set(cols.map((c) => c.name));
+async function migrateTursoTasks(c: Client) {
+  const rs = await c.execute(`PRAGMA table_info(tasks)`);
+  const nameCol = rs.columns.indexOf("name");
+  const names = new Set(
+    rs.rows.map((r) => String(nameCol >= 0 ? r[nameCol] ?? "" : "")),
+  );
   if (!names.has("task_type")) {
-    db.exec(`ALTER TABLE tasks ADD COLUMN task_type TEXT NOT NULL DEFAULT 'task'`);
+    await c.execute(
+      `ALTER TABLE tasks ADD COLUMN task_type TEXT NOT NULL DEFAULT 'task'`,
+    );
   }
   if (!names.has("assignee_name")) {
-    db.exec(`ALTER TABLE tasks ADD COLUMN assignee_name TEXT NOT NULL DEFAULT ''`);
+    await c.execute(
+      `ALTER TABLE tasks ADD COLUMN assignee_name TEXT NOT NULL DEFAULT ''`,
+    );
   }
 }
 
-function tableExists(db: DatabaseSync, name: string): boolean {
-  const row = db
-    .prepare(`SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?`)
-    .get(name) as { "1": number } | undefined;
-  return row !== undefined;
-}
-
-function migrateUsersAndComments(db: DatabaseSync) {
-  if (!tableExists(db, "users")) {
-    db.exec(`
+async function migrateTursoUsersComments(c: Client) {
+  if (!(await tursoTableExists(c, "users"))) {
+    await c.executeMultiple(`
 CREATE TABLE users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   email TEXT NOT NULL UNIQUE,
@@ -139,8 +87,8 @@ CREATE TABLE users (
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 `);
   }
-  if (!tableExists(db, "task_comments")) {
-    db.exec(`
+  if (!(await tursoTableExists(c, "task_comments"))) {
+    await c.executeMultiple(`
 CREATE TABLE task_comments (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
@@ -154,18 +102,21 @@ CREATE INDEX IF NOT EXISTS idx_task_comments_created_at ON task_comments(created
   }
 }
 
-function migrateUsersImage(db: DatabaseSync) {
-  if (!tableExists(db, "users")) return;
-  const cols = db.prepare(`PRAGMA table_info(users)`).all() as TableInfoRow[];
-  const names = new Set(cols.map((c) => c.name));
+async function migrateTursoUsersImage(c: Client) {
+  if (!(await tursoTableExists(c, "users"))) return;
+  const rs = await c.execute(`PRAGMA table_info(users)`);
+  const nameCol = rs.columns.indexOf("name");
+  const names = new Set(
+    rs.rows.map((r) => String(nameCol >= 0 ? r[nameCol] ?? "" : "")),
+  );
   if (!names.has("image")) {
-    db.exec(`ALTER TABLE users ADD COLUMN image TEXT NOT NULL DEFAULT ''`);
+    await c.execute(`ALTER TABLE users ADD COLUMN image TEXT NOT NULL DEFAULT ''`);
   }
 }
 
-function migrateCoworkRooms(db: DatabaseSync) {
-  if (!tableExists(db, "cowork_rooms")) {
-    db.exec(`
+async function migrateTursoCowork(c: Client) {
+  if (await tursoTableExists(c, "cowork_rooms")) return;
+  await c.executeMultiple(`
 CREATE TABLE cowork_rooms (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
@@ -176,18 +127,113 @@ CREATE TABLE cowork_rooms (
 );
 CREATE INDEX idx_cowork_rooms_board_id ON cowork_rooms(board_id);
 `);
-  }
 }
 
-function migrateUserPresence(db: DatabaseSync) {
-  if (!tableExists(db, "user_presence")) {
-    db.exec(`
+async function migrateTursoPresence(c: Client) {
+  if (await tursoTableExists(c, "user_presence")) return;
+  await c.executeMultiple(`
 CREATE TABLE user_presence (
   user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   last_seen_ms INTEGER NOT NULL
 );
 `);
+}
+
+async function ensureTursoDemoUsers(c: Client) {
+  if (process.env.TURSO_SKIP_DEMO_USERS === "1") return;
+  if (process.env.TURSO_SEED_DEMO !== "1") return;
+  const rs = await c.execute(`SELECT COUNT(*) AS c FROM users`);
+  const row = mapRow<{ c: number }>(rs, 0);
+  if (!row || row.c > 0) return;
+  const hash = bcrypt.hashSync("password123", 10);
+  await c.execute({
+    sql: `INSERT OR IGNORE INTO users (email, password_hash, role) VALUES (?, ?, ?)`,
+    args: ["pm@example.com", hash, "PM"],
+  });
+  await c.execute({
+    sql: `INSERT OR IGNORE INTO users (email, password_hash, role) VALUES (?, ?, ?)`,
+    args: ["dev@example.com", hash, "DEVELOPER"],
+  });
+}
+
+async function initTurso(): Promise<void> {
+  const c = getTurso();
+  await c.execute("PRAGMA foreign_keys = ON");
+  await c.executeMultiple(SQLITE_BOOTSTRAP_SQL);
+  await migrateTursoTasks(c);
+  await migrateTursoUsersComments(c);
+  await migrateTursoUsersImage(c);
+  await migrateTursoCowork(c);
+  await migrateTursoPresence(c);
+  await ensureTursoDemoUsers(c);
+}
+
+/**
+ * Await once before DB usage (Turso schema + migrations, or local SQLite open).
+ */
+export async function ensureDbReady(): Promise<void> {
+  if (isTursoConfigured()) {
+    if (!tursoReady) {
+      tursoReady = initTurso().catch((e) => {
+        tursoReady = null;
+        throw e;
+      });
+    }
+    await tursoReady;
+    return;
   }
+  getLocalDb();
+}
+
+export async function sqlGet<T extends Record<string, unknown>>(
+  sql: string,
+  args: InValue[] = [],
+): Promise<T | undefined> {
+  await ensureDbReady();
+  if (isTursoConfigured()) {
+    const rs = await getTurso().execute({ sql, args });
+    return mapRow<T>(rs, 0);
+  }
+  const database = getLocalDb();
+  return database.prepare(sql).get(...toLocalArgs(args)) as T | undefined;
+}
+
+export async function sqlAll<T extends Record<string, unknown>>(
+  sql: string,
+  args: InValue[] = [],
+): Promise<T[]> {
+  await ensureDbReady();
+  if (isTursoConfigured()) {
+    const rs = await getTurso().execute({ sql, args });
+    const out: T[] = [];
+    for (let i = 0; i < rs.rows.length; i++) {
+      const row = mapRow<T>(rs, i);
+      if (row) out.push(row);
+    }
+    return out;
+  }
+  const database = getLocalDb();
+  return database.prepare(sql).all(...toLocalArgs(args)) as T[];
+}
+
+export async function sqlRun(
+  sql: string,
+  args: InValue[] = [],
+): Promise<{ lastInsertRowid: number; changes: number }> {
+  await ensureDbReady();
+  if (isTursoConfigured()) {
+    const rs = await getTurso().execute({ sql, args });
+    return {
+      lastInsertRowid: Number(rs.lastInsertRowid ?? 0),
+      changes: rs.rowsAffected,
+    };
+  }
+  const database = getLocalDb();
+  const info = database.prepare(sql).run(...toLocalArgs(args));
+  return {
+    lastInsertRowid: asNumber(info.lastInsertRowid),
+    changes: asNumber(info.changes),
+  };
 }
 
 /** Normalize rowid/changes from node:sqlite (number | bigint). */

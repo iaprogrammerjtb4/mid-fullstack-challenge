@@ -3,7 +3,7 @@
 import { TrackType } from "@livekit/protocol";
 import { AccessToken, RoomServiceClient } from "livekit-server-sdk";
 import { auth } from "@/auth";
-import { getDb } from "@/lib/db";
+import { sqlGet } from "@/lib/db";
 import {
   assertLiveKitServerConfigured,
   getLiveKitApiKey,
@@ -53,18 +53,19 @@ export async function requestLiveKitTokenAction(
 
   const coworkId = parseCoworkRoomId(coworkRoomId);
 
-  const db = getDb();
-  const row = db
-    .prepare(`SELECT id FROM boards WHERE id = ?`)
-    .get(id) as { id: number } | undefined;
+  const row = await sqlGet<{ id: number }>(
+    `SELECT id FROM boards WHERE id = ?`,
+    [id],
+  );
   if (!row) {
     return { ok: false, code: "NOT_FOUND", message: "Board not found" };
   }
 
   if (coworkId != null) {
-    const cr = db
-      .prepare(`SELECT id FROM cowork_rooms WHERE id = ? AND board_id = ?`)
-      .get(coworkId, id) as { id: number } | undefined;
+    const cr = await sqlGet<{ id: number }>(
+      `SELECT id FROM cowork_rooms WHERE id = ? AND board_id = ?`,
+      [coworkId, id],
+    );
     if (!cr) {
       return { ok: false, code: "NOT_FOUND", message: "Cowork room not found on this board" };
     }
@@ -194,10 +195,10 @@ export async function requestLiveKitWorkspaceCallTokenAction(
     return { ok: false, code: "VALIDATION_ERROR", message: "Cannot call yourself" };
   }
 
-  const db = getDb();
-  const peer = db
-    .prepare(`SELECT id, email FROM users WHERE id = ?`)
-    .get(peerId) as { id: number; email: string } | undefined;
+  const peer = await sqlGet<{ id: number; email: string }>(
+    `SELECT id, email FROM users WHERE id = ?`,
+    [peerId],
+  );
   if (!peer) {
     return { ok: false, code: "NOT_FOUND", message: "User not found" };
   }

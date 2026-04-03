@@ -1,7 +1,7 @@
 "use server";
 
 import { auth } from "@/auth";
-import { asNumber, getDb } from "@/lib/db";
+import { asNumber, sqlAll, sqlGet, sqlRun } from "@/lib/db";
 import { isPmOrDeveloper, UserRole } from "@/lib/roles";
 import { createCoworkRoomSchema } from "@/lib/schemas";
 
@@ -32,25 +32,15 @@ export async function listCoworkRoomsAction(
     return { ok: false, code: "VALIDATION_ERROR", message: "Invalid board" };
   }
 
-  const db = getDb();
-  const board = db.prepare(`SELECT id FROM boards WHERE id = ?`).get(id) as
-    | { id: number }
-    | undefined;
+  const board = await sqlGet<{ id: number }>(
+    `SELECT id FROM boards WHERE id = ?`,
+    [id],
+  );
   if (!board) {
     return { ok: false, code: "NOT_FOUND", message: "Board not found" };
   }
 
-  const rows = db
-    .prepare(
-      `SELECT cr.id, cr.board_id, cr.task_id, cr.title, cr.created_by, cr.created_at,
-              u.email AS creator_email, t.title AS task_title
-       FROM cowork_rooms cr
-       JOIN users u ON u.id = cr.created_by
-       LEFT JOIN tasks t ON t.id = cr.task_id
-       WHERE cr.board_id = ?
-       ORDER BY cr.created_at DESC`,
-    )
-    .all(id) as {
+  const rows = await sqlAll<{
       id: number;
       board_id: number;
       task_id: number | null;
@@ -59,7 +49,16 @@ export async function listCoworkRoomsAction(
       created_at: string;
       creator_email: string;
       task_title: string | null;
-    }[];
+    }>(
+    `SELECT cr.id, cr.board_id, cr.task_id, cr.title, cr.created_by, cr.created_at,
+              u.email AS creator_email, t.title AS task_title
+       FROM cowork_rooms cr
+       JOIN users u ON u.id = cr.created_by
+       LEFT JOIN tasks t ON t.id = cr.task_id
+       WHERE cr.board_id = ?
+       ORDER BY cr.created_at DESC`,
+    [id],
+  );
 
   const data: CoworkRoomDTO[] = rows.map((r) => ({
     id: r.id,
@@ -89,23 +88,22 @@ export async function createCoworkRoomAction(
   }
 
   const { boardId, title, taskId } = parsed.data;
-  const db = getDb();
-  const board = db.prepare(`SELECT id FROM boards WHERE id = ?`).get(boardId) as
-    | { id: number }
-    | undefined;
-  if (!board) {
+  const boardRow = await sqlGet<{ id: number }>(
+    `SELECT id FROM boards WHERE id = ?`,
+    [boardId],
+  );
+  if (!boardRow) {
     return { ok: false, code: "NOT_FOUND", message: "Board not found" };
   }
 
   let taskIdToStore: number | null = null;
   if (taskId != null) {
-    const taskOk = db
-      .prepare(
-        `SELECT t.id FROM tasks t
+    const taskOk = await sqlGet<{ id: number }>(
+      `SELECT t.id FROM tasks t
          JOIN columns c ON c.id = t.column_id
          WHERE t.id = ? AND c.board_id = ?`,
-      )
-      .get(taskId, boardId) as { id: number } | undefined;
+      [taskId, boardId],
+    );
     if (!taskOk) {
       return {
         ok: false,
@@ -116,12 +114,11 @@ export async function createCoworkRoomAction(
     taskIdToStore = taskId;
   }
 
-  const info = db
-    .prepare(
-      `INSERT INTO cowork_rooms (board_id, task_id, title, created_by)
+  const info = await sqlRun(
+    `INSERT INTO cowork_rooms (board_id, task_id, title, created_by)
        VALUES (?, ?, ?, ?)`,
-    )
-    .run(boardId, taskIdToStore, title, Number(session.user.id));
+    [boardId, taskIdToStore, title, Number(session.user.id)],
+  );
 
   return { ok: true, data: { id: asNumber(info.lastInsertRowid) } };
 }
@@ -141,12 +138,10 @@ export async function deleteCoworkRoomAction(
     return { ok: false, code: "VALIDATION_ERROR", message: "Invalid ids" };
   }
 
-  const db = getDb();
-  const row = db
-    .prepare(
-      `SELECT id, created_by FROM cowork_rooms WHERE id = ? AND board_id = ?`,
-    )
-    .get(rId, bId) as { id: number; created_by: number } | undefined;
+  const row = await sqlGet<{ id: number; created_by: number }>(
+    `SELECT id, created_by FROM cowork_rooms WHERE id = ? AND board_id = ?`,
+    [rId, bId],
+  );
   if (!row) {
     return { ok: false, code: "NOT_FOUND", message: "Room not found" };
   }
@@ -157,6 +152,6 @@ export async function deleteCoworkRoomAction(
     return { ok: false, code: "FORBIDDEN", message: "Only the creator or PM can delete" };
   }
 
-  db.prepare(`DELETE FROM cowork_rooms WHERE id = ?`).run(rId);
+  await sqlRun(`DELETE FROM cowork_rooms WHERE id = ?`, [rId]);
   return { ok: true, data: undefined };
 }

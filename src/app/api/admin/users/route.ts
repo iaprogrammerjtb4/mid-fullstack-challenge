@@ -2,7 +2,7 @@ import bcrypt from "bcryptjs";
 import { getPmApiUser } from "@/lib/require-api-user";
 import { adminCreateUserSchema } from "@/lib/schemas";
 import { jsonErr, jsonOk, jsonZodError, readJsonBody } from "@/lib/api-response";
-import { asNumber, getDb } from "@/lib/db";
+import { asNumber, sqlAll, sqlGet, sqlRun } from "@/lib/db";
 import { isUserOnline, loadPresenceLastSeenMap } from "@/lib/presence";
 
 type UserListRow = {
@@ -17,14 +17,11 @@ export async function GET() {
   const auth = await getPmApiUser();
   if (auth.error) return auth.error;
 
-  const db = getDb();
-  const rows = db
-    .prepare(
-      `SELECT id, email, role, image, created_at FROM users ORDER BY id ASC`,
-    )
-    .all() as UserListRow[];
+  const rows = await sqlAll<UserListRow>(
+    `SELECT id, email, role, image, created_at FROM users ORDER BY id ASC`,
+  );
 
-  const presence = loadPresenceLastSeenMap(db);
+  const presence = await loadPresenceLastSeenMap();
   const now = Date.now();
 
   return jsonOk(
@@ -48,33 +45,31 @@ export async function POST(request: Request) {
   if (!parsed.success) return jsonZodError(parsed.error);
 
   const email = parsed.data.email.trim().toLowerCase();
-  const db = getDb();
-  const taken = db
-    .prepare(`SELECT id FROM users WHERE lower(email) = ?`)
-    .get(email) as { id: number } | undefined;
+  const taken = await sqlGet<{ id: number }>(
+    `SELECT id FROM users WHERE lower(email) = ?`,
+    [email],
+  );
   if (taken) {
     return jsonErr("EMAIL_TAKEN", "That email is already registered", 409);
   }
 
   const hash = bcrypt.hashSync(parsed.data.password, 10);
-  const info = db
-    .prepare(
-      `INSERT INTO users (email, password_hash, role, image) VALUES (?, ?, ?, '')`,
-    )
-    .run(email, hash, parsed.data.role);
+  const info = await sqlRun(
+    `INSERT INTO users (email, password_hash, role, image) VALUES (?, ?, ?, '')`,
+    [email, hash, parsed.data.role],
+  );
 
   const id = asNumber(info.lastInsertRowid);
-  const row = db
-    .prepare(
-      `SELECT id, email, role, image, created_at FROM users WHERE id = ?`,
-    )
-    .get(id) as {
-      id: number;
-      email: string;
-      role: string;
-      image: string;
-      created_at: string;
-    };
+  const row = await sqlGet<{
+    id: number;
+    email: string;
+    role: string;
+    image: string;
+    created_at: string;
+  }>(`SELECT id, email, role, image, created_at FROM users WHERE id = ?`, [id]);
+  if (!row) {
+    return jsonErr("INTERNAL", "Failed to load created user", 500);
+  }
 
   return jsonOk({
     id: row.id,

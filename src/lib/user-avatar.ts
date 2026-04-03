@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { getDb } from "@/lib/db";
+import { sqlGet, sqlRun } from "@/lib/db";
 
 const MAX_BYTES = 2 * 1024 * 1024;
 const ALLOWED = new Map<string, string>([
@@ -74,10 +74,10 @@ export async function saveUserProfileAvatar(
     fs.mkdirSync(PROFILE_UPLOAD_DIR, { recursive: true });
   }
 
-  const db = getDb();
-  const prev = db
-    .prepare(`SELECT image FROM users WHERE id = ?`)
-    .get(userId) as { image: string } | undefined;
+  const prev = await sqlGet<{ image: string }>(
+    `SELECT image FROM users WHERE id = ?`,
+    [userId],
+  );
   if (!prev) {
     return {
       ok: false,
@@ -97,7 +97,7 @@ export async function saveUserProfileAvatar(
   fs.writeFileSync(diskPath, buf);
 
   const publicUrl = `/uploads/profiles/${filename}`;
-  db.prepare(`UPDATE users SET image = ? WHERE id = ?`).run(publicUrl, userId);
+  await sqlRun(`UPDATE users SET image = ? WHERE id = ?`, [publicUrl, userId]);
 
   return { ok: true, url: publicUrl };
 }
