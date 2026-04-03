@@ -141,9 +141,9 @@ CREATE TABLE user_presence (
 
 async function ensureTursoDemoUsers(c: Client) {
   if (process.env.TURSO_SKIP_DEMO_USERS === "1") return;
-  const rs = await c.execute(`SELECT COUNT(*) AS c FROM users`);
-  const row = mapRow<{ c: number }>(rs, 0);
-  if (!row || row.c > 0) return;
+  const rs = await c.execute(`SELECT COUNT(*) FROM users`);
+  const n = Number(rs.rows[0]?.[0] ?? 0);
+  if (!Number.isFinite(n) || n > 0) return;
   const hash = bcrypt.hashSync("password123", 10);
   await c.execute({
     sql: `INSERT OR IGNORE INTO users (email, password_hash, role) VALUES (?, ?, ?)`,
@@ -182,6 +182,17 @@ export async function ensureDbReady(): Promise<void> {
     return;
   }
   getLocalDb();
+}
+
+/**
+ * Call before credential lookup so Turso always re-checks demo users (covers cold starts / races).
+ * Local + Vercel file DB already seeds inside getLocalDb().
+ */
+export async function bootstrapLoginDb(): Promise<void> {
+  await ensureDbReady();
+  if (isTursoConfigured() && process.env.TURSO_SKIP_DEMO_USERS !== "1") {
+    await ensureTursoDemoUsers(getTurso());
+  }
 }
 
 export async function sqlGet<T extends Record<string, unknown>>(
