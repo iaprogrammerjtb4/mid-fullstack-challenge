@@ -6,6 +6,9 @@ import { UserRole } from "@/lib/roles";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const isHttps =
+    request.nextUrl.protocol === "https:" ||
+    request.headers.get("x-forwarded-proto") === "https";
 
   if (
     pathname.startsWith("/api") ||
@@ -18,6 +21,7 @@ export async function middleware(request: NextRequest) {
   const token = await getToken({
     req: request,
     secret: getAuthSecret(),
+    secureCookie: isHttps,
   });
 
   if (pathname === "/login") {
