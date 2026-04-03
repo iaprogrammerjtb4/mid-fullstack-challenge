@@ -146,16 +146,25 @@ CREATE TABLE user_presence (
 
 async function ensureTursoDemoUsers(c: Client) {
   if (process.env.TURSO_SKIP_DEMO_USERS === "1") return;
-  const rs = await c.execute(`SELECT COUNT(*) FROM users`);
-  const n = Number(rs.rows[0]?.[0] ?? 0);
-  if (!Number.isFinite(n) || n > 0) return;
   const hash = bcrypt.hashSync("password123", 10);
   await c.execute({
-    sql: `INSERT OR IGNORE INTO users (email, password_hash, role) VALUES (?, ?, ?)`,
+    sql: `
+      INSERT INTO users (email, password_hash, role)
+      VALUES (?, ?, ?)
+      ON CONFLICT(email) DO UPDATE SET
+        password_hash = excluded.password_hash,
+        role = excluded.role
+    `,
     args: ["pm@example.com", hash, "PM"],
   });
   await c.execute({
-    sql: `INSERT OR IGNORE INTO users (email, password_hash, role) VALUES (?, ?, ?)`,
+    sql: `
+      INSERT INTO users (email, password_hash, role)
+      VALUES (?, ?, ?)
+      ON CONFLICT(email) DO UPDATE SET
+        password_hash = excluded.password_hash,
+        role = excluded.role
+    `,
     args: ["dev@example.com", hash, "DEVELOPER"],
   });
 }
