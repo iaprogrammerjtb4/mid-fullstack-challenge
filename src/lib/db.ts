@@ -39,7 +39,12 @@ function mapRow<T extends Record<string, unknown>>(
   if (!row) return undefined;
   const out: Record<string, unknown> = {};
   for (let i = 0; i < rs.columns.length; i++) {
-    const key = rs.columns[i];
+    let key = rs.columns[i];
+    const rawKey = key == null ? "" : String(key).trim();
+    // Hrana/libsql may return "" for column names; duplicate "" would overwrite cells and break callers.
+    if (!rawKey) key = `__col${i}`;
+    else key = rawKey;
+    if (key in out) key = `${String(key)}__${i}`;
     let v: unknown = row[i];
     if (typeof v === "bigint") v = Number(v);
     out[key] = v;
@@ -193,6 +198,48 @@ export async function bootstrapLoginDb(): Promise<void> {
   if (isTursoConfigured() && process.env.TURSO_SKIP_DEMO_USERS !== "1") {
     await ensureTursoDemoUsers(getTurso());
   }
+}
+
+export type CredentialsUserRow = {
+  id: number;
+  email: string;
+  password_hash: string;
+  role: string;
+  image: string;
+};
+
+/**
+ * Credential login must not use mapRow alone: remote libsql can omit column names, so positional
+ * values match the SELECT list (id, email, password_hash, role, image).
+ */
+export async function getUserRowForCredentialsLogin(
+  email: string,
+): Promise<CredentialsUserRow | undefined> {
+  const sql = `SELECT id, email, password_hash, role, image FROM users WHERE LOWER(TRIM(email)) = ?`;
+  await bootstrapLoginDb();
+  if (isTursoConfigured()) {
+    const rs = await getTurso().execute({ sql, args: [email] });
+    const raw = rs.rows[0];
+    if (!raw) return undefined;
+    const cell = (i: number): unknown => {
+      const v = raw[i] as unknown;
+      return typeof v === "bigint" ? Number(v) : v;
+    };
+    const id = cell(0);
+    const password_hash = cell(2);
+    if (id == null || password_hash == null) return undefined;
+    return {
+      id: Number(id),
+      email: String(cell(1) ?? ""),
+      password_hash: String(password_hash),
+      role: String(cell(3) ?? ""),
+      image: String(cell(4) ?? ""),
+    };
+  }
+  const database = getLocalDb();
+  return database.prepare(sql).get(...toLocalArgs([email])) as
+    | CredentialsUserRow
+    | undefined;
 }
 
 export async function sqlGet<T extends Record<string, unknown>>(

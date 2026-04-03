@@ -3,7 +3,7 @@ import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { getAuthSecret } from "@/lib/auth-secret";
-import { bootstrapLoginDb, sqlGet } from "@/lib/db";
+import { getUserRowForCredentialsLogin } from "@/lib/db";
 import { UserRole } from "@/lib/roles";
 import type { UserRoleType } from "@/lib/roles";
 
@@ -30,14 +30,6 @@ const credentialsSchema = z.object({
   ),
 });
 
-type UserRow = {
-  id: number;
-  email: string;
-  password_hash: string;
-  role: UserRoleType;
-  image: string;
-};
-
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
   secret: getAuthSecret(),
@@ -49,16 +41,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        await bootstrapLoginDb();
-
         const parsed = credentialsSchema.safeParse(credentials);
         if (!parsed.success) return null;
 
         const email = parsed.data.email;
-        const row = await sqlGet<UserRow>(
-          `SELECT id, email, password_hash, role, image FROM users WHERE LOWER(TRIM(email)) = ?`,
-          [email],
-        );
+        const row = await getUserRowForCredentialsLogin(email);
         if (!row) return null;
 
         const stored =
