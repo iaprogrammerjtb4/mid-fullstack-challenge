@@ -1,13 +1,12 @@
 "use client";
 
 import { signIn } from "next-auth/react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { FlowKanbanLogo } from "@/components/brand/flowkanban-logo";
 import { useLocale } from "@/i18n/locale-provider";
 
 export function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { t } = useLocale();
   const callbackUrl = searchParams.get("callbackUrl") ?? "/";
@@ -25,14 +24,14 @@ export function LoginForm() {
       email: email.trim().toLowerCase(),
       password,
       redirect: false,
+      redirectTo: callbackUrl,
     });
     setPending(false);
     if (res?.error) {
       setError(t("login.invalidCredentials"));
       return;
     }
-    router.push(callbackUrl);
-    router.refresh();
+    window.location.assign(res?.url ?? callbackUrl);
   }
 
   return (
