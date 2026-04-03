@@ -34,9 +34,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const parsed = credentialsSchema.safeParse(credentials);
         if (!parsed.success) return null;
 
+        const email = parsed.data.email.trim().toLowerCase();
         const row = await sqlGet<UserRow>(
-          `SELECT id, email, password_hash, role, image FROM users WHERE email = ?`,
-          [parsed.data.email.toLowerCase()],
+          `SELECT id, email, password_hash, role, image FROM users WHERE LOWER(TRIM(email)) = ?`,
+          [email],
         );
         if (!row) return null;
 

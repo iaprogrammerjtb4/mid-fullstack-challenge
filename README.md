@@ -121,7 +121,7 @@ Detalle de implementación: `src/app/api/**`, esquemas en `src/lib/schemas.ts`, 
 
 1. Conecta el repo a [Vercel](https://vercel.com), framework **Next.js**, Node **22.x**.
 2. Variables mínimas en producción: **`AUTH_SECRET`** y **`AUTH_URL`** (URL pública del deploy, sin barra final).
-3. **Base de datos en producción:** configura **[Turso](https://turso.tech)** — **`TURSO_DATABASE_URL`** y **`TURSO_AUTH_TOKEN`** — para que tableros, tareas y sesiones compartan la misma SQLite en la nube. Opcional: **`TURSO_SEED_DEMO=1`** para crear `pm@example.com` / `dev@example.com` si la tabla `users` está vacía; **`TURSO_SKIP_DEMO_USERS=1`** para no insertarlos. Sin Turso, la app sigue usando SQLite en **`/tmp`** (no persistente entre instancias); ahí aplica **`VERCEL_SKIP_DEMO_USERS`** respecto al auto-demo local.
+3. **Base de datos en producción:** configura **[Turso](https://turso.tech)** — **`TURSO_DATABASE_URL`** y **`TURSO_AUTH_TOKEN`**. Con Turso, si la tabla `users` está vacía, la app crea las cuentas demo (`pm@example.com` / `dev@example.com`, `password123`) salvo **`TURSO_SKIP_DEMO_USERS=1`**. Sin Turso, la app usa SQLite en **`/tmp`** (no persistente entre instancias); ahí aplica **`VERCEL_SKIP_DEMO_USERS`** para desactivar el auto-demo local.
 4. El **chat Socket.io** (`bun run socket`) debe correr en **otro servicio**; en Vercel define **`NEXT_PUBLIC_CHAT_SOCKET_URL`** apuntando a esa URL.
 
 Guía detallada (variables, LiveKit, limitaciones): **[`docs/vercel-deploy.md`](./docs/vercel-deploy.md)**. En la raíz hay un **`vercel.json`** mínimo para el preset de Next.js.

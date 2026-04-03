@@ -141,7 +141,6 @@ CREATE TABLE user_presence (
 
 async function ensureTursoDemoUsers(c: Client) {
   if (process.env.TURSO_SKIP_DEMO_USERS === "1") return;
-  if (process.env.TURSO_SEED_DEMO !== "1") return;
   const rs = await c.execute(`SELECT COUNT(*) AS c FROM users`);
   const row = mapRow<{ c: number }>(rs, 0);
   if (!row || row.c > 0) return;

@@ -38,8 +38,7 @@ Opcionales (si usas esas funciones):
 | `LIVEKIT_API_SECRET` | Secreto LiveKit (servidor) |
 | `TURSO_DATABASE_URL` | URL de la base **libSQL** (Turso), ej. `libsql://tu-db.turso.io` — **recomendado en Vercel** para datos persistentes compartidos |
 | `TURSO_AUTH_TOKEN` | Token de autenticación de Turso (junto con la URL anterior activa el modo remoto) |
-| `TURSO_SEED_DEMO` | Opcional. Si vale `1` y la tabla `users` está vacía, inserta `pm@example.com` y `dev@example.com` (`password123`) |
-| `TURSO_SKIP_DEMO_USERS` | Si vale `1`, no se insertan usuarios demo en Turso (aunque `TURSO_SEED_DEMO=1`) |
+| `TURSO_SKIP_DEMO_USERS` | Si vale `1`, no se insertan usuarios demo en Turso cuando la tabla `users` está vacía (útil en producción real) |
 
 Tras guardar variables, vuelve a desplegar (**Redeploy**) para que el build las inyecte.
 
@@ -67,7 +66,7 @@ En **Vercel**, para que **tableros, tareas y usuarios** sean **los mismos en tod
 
 **Usuarios y seed:**
 
-- Con Turso, los usuarios demo **no** se crean solo por estar en Vercel. Si quieres las mismas cuentas que en local sin ejecutar seed, define **`TURSO_SEED_DEMO=1`** (solo si la tabla `users` está vacía). Para producción real, crea usuarios propios o importa datos y usa **`TURSO_SKIP_DEMO_USERS=1`**.
+- Con Turso, si la tabla `users` está **vacía** en el primer arranque, se insertan **`pm@example.com`** y **`dev@example.com`** (`password123`), igual que en el fallback de Vercel con `/tmp`. Para evitarlo (producción real), define **`TURSO_SKIP_DEMO_USERS=1`** y crea usuarios por tu flujo o con **`npm run seed`** cargando las variables Turso en el entorno.
 - Para cargar el tablero de ejemplo, ejecuta **`npm run seed`** con **`TURSO_DATABASE_URL`** y **`TURSO_AUTH_TOKEN`** en el entorno (p. ej. `.env.local`); el script detecta Turso y escribe en la nube. Sin esas variables, el seed usa solo el archivo local `data/app.db`.
 
 ### Sin Turso (solo `/tmp` en Vercel)
@@ -102,7 +101,7 @@ LiveKit ya es un servicio en la nube. Configura las variables de la tabla anteri
 ## 6. Tras el primer deploy
 
 1. Comprueba que `AUTH_URL` coincide exactamente con la URL de producción (incluido `https` y sin `/` final incorrecta).
-2. Con **Turso**, asegúrate de tener al menos un usuario (registro propio, `TURSO_SEED_DEMO=1`, o **`npm run seed`** con las variables Turso en el entorno).
+2. Con **Turso**, tras el primer request la app rellena usuarios demo si la tabla estaba vacía (salvo `TURSO_SKIP_DEMO_USERS=1`). También puedes usar **`npm run seed`** con las variables Turso en el entorno para el tablero de ejemplo.
 3. Abre `https://tu-app.vercel.app` (o tu dominio) y prueba login.
 
 ---
