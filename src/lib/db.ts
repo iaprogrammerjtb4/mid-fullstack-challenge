@@ -47,6 +47,7 @@ function mapRow<T extends Record<string, unknown>>(
     if (key in out) key = `${String(key)}__${i}`;
     let v: unknown = row[i];
     if (typeof v === "bigint") v = Number(v);
+    out[`__col${i}`] = v;
     out[key] = v;
   }
   return out as T;
@@ -119,6 +120,18 @@ async function migrateTursoUsersImage(c: Client) {
   }
 }
 
+async function migrateTursoUserAvatars(c: Client) {
+  if (await tursoTableExists(c, "user_avatars")) return;
+  await c.executeMultiple(`
+CREATE TABLE user_avatars (
+  user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  mime_type TEXT NOT NULL,
+  content BLOB NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+`);
+}
+
 async function migrateTursoCowork(c: Client) {
   if (await tursoTableExists(c, "cowork_rooms")) return;
   await c.executeMultiple(`
@@ -176,6 +189,7 @@ async function initTurso(): Promise<void> {
   await migrateTursoTasks(c);
   await migrateTursoUsersComments(c);
   await migrateTursoUsersImage(c);
+  await migrateTursoUserAvatars(c);
   await migrateTursoCowork(c);
   await migrateTursoPresence(c);
   await ensureTursoDemoUsers(c);
@@ -249,6 +263,45 @@ export async function getUserRowForCredentialsLogin(
   return database.prepare(sql).get(...toLocalArgs([email])) as
     | CredentialsUserRow
     | undefined;
+}
+
+export type StoredUserAvatar = {
+  mimeType: string;
+  content: Buffer;
+};
+
+export async function getStoredUserAvatar(
+  userId: number,
+): Promise<StoredUserAvatar | undefined> {
+  const sql = `SELECT mime_type, content FROM user_avatars WHERE user_id = ?`;
+  await ensureDbReady();
+  if (isTursoConfigured()) {
+    const rs = await getTurso().execute({ sql, args: [userId] });
+    const raw = rs.rows[0];
+    if (!raw) return undefined;
+    const mimeType = raw[0];
+    const content = raw[1];
+    if (typeof mimeType !== "string" || content == null) return undefined;
+    if (content instanceof ArrayBuffer) {
+      return { mimeType, content: Buffer.from(content) };
+    }
+    if (ArrayBuffer.isView(content)) {
+      return {
+        mimeType,
+        content: Buffer.from(content.buffer, content.byteOffset, content.byteLength),
+      };
+    }
+    return undefined;
+  }
+  const database = getLocalDb();
+  const row = database.prepare(sql).get(...toLocalArgs([userId])) as
+    | { mime_type: string; content: Uint8Array }
+    | undefined;
+  if (!row) return undefined;
+  return {
+    mimeType: row.mime_type,
+    content: Buffer.from(row.content),
+  };
 }
 
 export async function sqlGet<T extends Record<string, unknown>>(

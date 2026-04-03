@@ -7,7 +7,7 @@ import {
 import { jsonErr, jsonOk, jsonZodError, readJsonBody } from "@/lib/api-response";
 import { asNumber, sqlGet, sqlRun } from "@/lib/db";
 import { isUserOnline, loadPresenceLastSeenMap } from "@/lib/presence";
-import { unlinkProfileImage } from "@/lib/user-avatar";
+import { clearUserProfileAvatar } from "@/lib/user-avatar";
 
 async function countProductManagers(): Promise<number> {
   const row = await sqlGet<{ n: number | bigint }>(
@@ -88,10 +88,7 @@ export async function PATCH(
   }
 
   if (parsed.data.clearImage === true) {
-    if (target.image) {
-      unlinkProfileImage(target.image);
-    }
-    await sqlRun(`UPDATE users SET image = ? WHERE id = ?`, ["", userId]);
+    await clearUserProfileAvatar(userId, target.image);
   }
 
   const row = await sqlGet<{

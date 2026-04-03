@@ -66,6 +66,13 @@ CREATE TABLE IF NOT EXISTS task_comments (
 );
 CREATE INDEX IF NOT EXISTS idx_task_comments_task_id ON task_comments(task_id);
 CREATE INDEX IF NOT EXISTS idx_task_comments_created_at ON task_comments(created_at);
+
+CREATE TABLE IF NOT EXISTS user_avatars (
+  user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  mime_type TEXT NOT NULL,
+  content BLOB NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `;
 
 let db: DatabaseSync | null = null;
@@ -82,6 +89,7 @@ export function getLocalDb(): DatabaseSync {
   migrateTasksTable(db);
   migrateUsersAndComments(db);
   migrateUsersImage(db);
+  migrateUserAvatars(db);
   migrateCoworkRooms(db);
   migrateUserPresence(db);
   ensureVercelDemoUsersLocal(db);
@@ -167,6 +175,19 @@ function migrateUsersImage(database: DatabaseSync) {
   const names = new Set(cols.map((c) => c.name));
   if (!names.has("image")) {
     database.exec(`ALTER TABLE users ADD COLUMN image TEXT NOT NULL DEFAULT ''`);
+  }
+}
+
+function migrateUserAvatars(database: DatabaseSync) {
+  if (!tableExists(database, "user_avatars")) {
+    database.exec(`
+CREATE TABLE user_avatars (
+  user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  mime_type TEXT NOT NULL,
+  content BLOB NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+`);
   }
 }
 

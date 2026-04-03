@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { sqlGet, sqlRun } from "@/lib/db";
+import { getStoredUserAvatar, sqlGet, sqlRun } from "@/lib/db";
 
 const MAX_BYTES = 2 * 1024 * 1024;
 const ALLOWED = new Map<string, string>([
@@ -9,14 +9,7 @@ const ALLOWED = new Map<string, string>([
   ["image/webp", ".webp"],
 ]);
 
-export const PROFILE_UPLOAD_DIR = path.join(
-  process.cwd(),
-  "public",
-  "uploads",
-  "profiles",
-);
-
-export function unlinkProfileImage(publicPath: string | null | undefined) {
+function unlinkLegacyProfileImage(publicPath: string | null | undefined) {
   if (!publicPath || !publicPath.startsWith("/uploads/profiles/")) return;
   const rel = publicPath.slice(1);
   const full = path.join(process.cwd(), "public", rel);
@@ -37,6 +30,25 @@ export type SaveAvatarResult =
       message: string;
       status: number;
     };
+
+export function avatarPublicUrl(userId: number, version = Date.now()): string {
+  return `/api/users/${userId}/avatar?v=${version}`;
+}
+
+export async function clearUserProfileAvatar(
+  userId: number,
+  currentImage: string | null | undefined,
+) {
+  if (currentImage) {
+    unlinkLegacyProfileImage(currentImage);
+  }
+  await sqlRun(`DELETE FROM user_avatars WHERE user_id = ?`, [userId]);
+  await sqlRun(`UPDATE users SET image = '' WHERE id = ?`, [userId]);
+}
+
+export async function loadUserProfileAvatar(userId: number) {
+  return getStoredUserAvatar(userId);
+}
 
 export async function saveUserProfileAvatar(
   userId: number,
@@ -60,18 +72,13 @@ export async function saveUserProfileAvatar(
     };
   }
 
-  const ext = ALLOWED.get(file.type);
-  if (!ext) {
+  if (!ALLOWED.has(file.type)) {
     return {
       ok: false,
       code: "INVALID_TYPE",
       message: "Use JPEG, PNG, or WebP",
       status: 400,
     };
-  }
-
-  if (!fs.existsSync(PROFILE_UPLOAD_DIR)) {
-    fs.mkdirSync(PROFILE_UPLOAD_DIR, { recursive: true });
   }
 
   const prev = await sqlGet<{ image: string }>(
@@ -88,15 +95,23 @@ export async function saveUserProfileAvatar(
   }
 
   if (prev.image) {
-    unlinkProfileImage(prev.image);
+    unlinkLegacyProfileImage(prev.image);
   }
 
-  const filename = `${userId}${ext}`;
-  const diskPath = path.join(PROFILE_UPLOAD_DIR, filename);
   const buf = Buffer.from(await file.arrayBuffer());
-  fs.writeFileSync(diskPath, buf);
+  await sqlRun(
+    `
+      INSERT INTO user_avatars (user_id, mime_type, content, updated_at)
+      VALUES (?, ?, ?, datetime('now'))
+      ON CONFLICT(user_id) DO UPDATE SET
+        mime_type = excluded.mime_type,
+        content = excluded.content,
+        updated_at = datetime('now')
+    `,
+    [userId, file.type, buf],
+  );
 
-  const publicUrl = `/uploads/profiles/${filename}`;
+  const publicUrl = avatarPublicUrl(userId);
   await sqlRun(`UPDATE users SET image = ? WHERE id = ?`, [publicUrl, userId]);
 
   return { ok: true, url: publicUrl };
